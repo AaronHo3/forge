@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Broken Record - music telephone</title>
+<style>
+  :root {
+    --bg:#0e0f13; --panel:#171922; --panel2:#1f2230; --ink:#e8eaf0;
+    --muted:#9aa0b4; --accent:#7c6cff; --accent2:#22d3a6; --line:#2a2e3e; --warn:#ffb454;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); min-height:100vh;
+    font:16px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  .top { padding:16px 24px; border-bottom:1px solid var(--line); display:flex;
+    align-items:center; gap:16px; }
+  .top h1 { margin:0; font-size:18px; letter-spacing:.5px; }
+  .top h1 span { color:var(--accent); }
+  .top a { color:var(--muted); text-decoration:none; font-size:13px; }
+  .top a:hover { color:var(--ink); }
+  .stage { max-width:640px; margin:0 auto; padding:40px 24px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:28px; }
+  h2 { margin:0 0 6px; font-size:22px; }
+  .sub { color:var(--muted); margin:0 0 22px; font-size:14px; }
+  label { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.6px;
+    color:var(--muted); margin:16px 0 6px; }
+  input[type=text], textarea, select {
+    width:100%; padding:12px 14px; background:var(--panel2); color:var(--ink);
+    border:1px solid var(--line); border-radius:10px; font-size:15px; outline:none;
+    font-family:inherit; }
+  textarea { min-height:90px; resize:vertical; }
+  input:focus, textarea:focus, select:focus { border-color:var(--accent); }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  .val { color:var(--accent2); }
+  .players .prow { display:flex; gap:8px; margin-bottom:8px; }
+  .players .prow input { flex:1; }
+  .players .prow button { flex:0 0 auto; background:var(--panel2); border:1px solid var(--line);
+    color:var(--muted); border-radius:10px; padding:0 12px; cursor:pointer; }
+  .row { display:flex; gap:14px; }
+  .row > div { flex:1; }
+  button.primary { width:100%; margin-top:24px; padding:14px; border:0; border-radius:12px;
+    background:var(--accent); color:#fff; font-size:16px; font-weight:700; cursor:pointer; }
+  button.primary:disabled { opacity:.5; cursor:not-allowed; }
+  button.add { width:100%; margin-top:4px; background:var(--panel2); color:var(--ink);
+    border:1px dashed var(--line); border-radius:10px; padding:10px; cursor:pointer; }
+  .center { text-align:center; }
+  .big { font-size:30px; font-weight:800; margin:8px 0 4px; }
+  .accent { color:var(--accent); }
+  .pill { display:inline-block; padding:4px 12px; border-radius:999px; background:var(--panel2);
+    border:1px solid var(--line); color:var(--muted); font-size:12px; }
+  audio { width:100%; margin:18px 0 4px; }
+  .spinner { width:34px; height:34px; border:3px solid var(--line); border-top-color:var(--accent);
+    border-radius:50%; animation:spin .8s linear infinite; margin:24px auto; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .hop { background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:16px 18px; margin-bottom:14px; }
+  .hop .who { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .hop .who b { font-size:16px; }
+  .badge { font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; }
+  .badge.seed { background:rgba(124,108,255,.18); color:#b9aeff; }
+  .badge.score { background:rgba(34,211,166,.16); color:var(--accent2); }
+  .hop .text { font-size:15px; margin:4px 0; }
+  .hop .tutor { color:var(--muted); font-size:13px; margin-top:6px; font-style:italic; }
+  .arrow { text-align:center; color:var(--line); font-size:20px; margin:-6px 0 8px; }
+  .lead { background:var(--panel2); border-radius:12px; padding:14px 16px; margin-top:8px; }
+  .lead .lrow { display:flex; justify-content:space-between; padding:4px 0; }
+  .lead .lrow.win { color:var(--accent2); font-weight:700; }
+  .fidelity { text-align:center; color:var(--muted); margin:14px 0; font-size:14px; }
+  .err { color:var(--warn); font-size:13px; margin-top:10px; min-height:16px; }
+  .hide { display:none; }
+</style>
+<link rel="stylesheet" href="/app.css" />
+<script src="/wave.js" defer></script>
+</head>
+<body class="p-record">
+  <div class="top">
+    <h1><span>📻</span> Broken Record</h1>
+    <a href="/">← workbench</a>
+    <span style="flex:1"></span>
+    <span class="pill" id="progress"></span>
+  </div>
+  <div class="stage">
+
+    <!-- SETUP -->
+    <div id="s-setup" class="card">
+      <h2>Music telephone</h2>
+      <p class="sub">One device, passed around. The first player composes a sound from
+        a prompt. Everyone after only <b>hears</b> it and guesses the prompt - which
+        makes the next sound. Watch it drift.</p>
+      <label>Players (2–8)</label>
+      <div class="players" id="players"></div>
+      <button class="add" id="addP">+ add player</button>
+      <div class="row">
+        <div>
+          <label>Clip length <span class="val" id="lenVal">3.2s</span></label>
+          <input id="chunks" type="range" min="2" max="12" step="1" value="4" />
+        </div>
+        <div>
+          <label>Key</label>
+          <select id="key">
+            <option value="">free</option>
+            <option>A minor</option><option>C major</option><option>E minor</option>
+            <option>D minor</option><option>G major</option><option>F major</option>
+          </select>
+        </div>
+      </div>
+      <button class="primary" id="start">Start game</button>
+      <div class="err" id="setupErr"></div>
+    </div>
+
+    <!-- PASS -->
+    <div id="s-pass" class="card center hide">
+      <p class="sub">Pass the device to</p>
+      <div class="big accent" id="passName">-</div>
+      <p class="sub" id="passRole"></p>
+      <button class="primary" id="passGo">I'm ready →</button>
+    </div>
+
+    <!-- TURN -->
+    <div id="s-turn" class="card hide">
+      <div class="who" style="display:flex;justify-content:space-between;align-items:center">
+        <h2 id="turnName">-</h2><span class="pill" id="turnStep"></span>
+      </div>
+      <p class="sub" id="turnHint"></p>
+      <audio id="turnAudio" controls preload="auto" class="hide"></audio>
+      <label id="turnLabel">Describe the music</label>
+      <textarea id="turnText" placeholder="e.g. warm lo-fi piano, mellow and nostalgic"></textarea>
+      <button class="primary" id="turnSubmit">Submit →</button>
+      <div class="err" id="turnErr"></div>
+    </div>
+
+    <!-- COMPOSING -->
+    <div id="s-busy" class="card center hide">
+      <div class="spinner"></div>
+      <p class="sub">The message travels… (MRT2 is composing)</p>
+    </div>
+
+    <!-- READY TO REVEAL -->
+    <div id="s-done" class="card center hide">
+      <div class="big">🎬 The chain is complete</div>
+      <p class="sub">See how far the sound drifted from the original.</p>
+      <button class="primary" id="revealBtn">Reveal the drift</button>
+    </div>
+
+    <!-- REVEAL -->
+    <div id="s-reveal" class="hide">
+      <h2 style="text-align:center">How it drifted</h2>
+      <div class="fidelity" id="fidelity"></div>
+      <div id="chain"></div>
+      <div class="card">
+        <h2 style="font-size:18px;margin:0 0 10px">🏆 Leaderboard</h2>
+        <div class="lead" id="leaderboard"></div>
+      </div>
+      <button class="primary" id="again">New game</button>
+    </div>
+
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const show = id => ["s-setup","s-pass","s-turn","s-busy","s-done","s-reveal"]
+  .forEach(s => $(s).classList.toggle("hide", s!==id));
+
+let G = null;          // game state from server
+let clipToPlay = null; // the clip the current player must listen to (null for composer)
+
+// ── setup ──────────────────────────────────────────────────────────────────
+function addPlayer(name="") {
+  const row = document.createElement("div"); row.className = "prow";
+  row.innerHTML = `<input type="text" placeholder="player name" value="${name}">
+                   <button title="remove">✕</button>`;
+  row.querySelector("button").onclick = () => row.remove();
+  $("players").appendChild(row);
+}
+["Player 1","Player 2","Player 3"].forEach(addPlayer);
+$("addP").onclick = () => { if ($("players").children.length < 8) addPlayer(); };
+$("chunks").oninput = e => $("lenVal").textContent = (e.target.value*0.8).toFixed(1)+"s";
+
+async function api(path, body) {
+  const r = await fetch(path, {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(body)});
+  if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+  return r.json();
+}
+
+$("start").onclick = async () => {
+  const names = [...$("players").querySelectorAll("input")].map(i=>i.value.trim()).filter(Boolean);
+  if (names.length < 2) { $("setupErr").textContent = "Need at least 2 players."; return; }
+  try {
+    G = await api("/api/telephone/new", {
+      players: names, chunks: +$("chunks").value, key: $("key").value || null });
+    clipToPlay = null;
+    gotoPass();
+  } catch(e) { $("setupErr").textContent = e.message; }
+};
+
+function updateProgress() {
+  $("progress").textContent = G ? `step ${Math.min(G.step+1,G.total)} / ${G.total}` : "";
+}
+
+// ── pass interstitial ───────────────────────────────────────────────────────
+function gotoPass() {
+  updateProgress();
+  $("passName").textContent = G.current_player;
+  $("passRole").textContent = (G.step === 0)
+    ? "You're the composer - invent a sound."
+    : "Listen to the clip, then guess its prompt. No peeking!";
+  show("s-pass");
+}
+$("passGo").onclick = () => gotoTurn();
+
+// ── a turn ───────────────────────────────────────────────────────────────────
+function gotoTurn() {
+  updateProgress();
+  const seed = G.step === 0;
+  $("turnName").textContent = G.current_player;
+  $("turnStep").textContent = seed ? "composer" : "guess the prompt";
+  $("turnText").value = "";
+  const audio = $("turnAudio");
+  if (seed) {
+    $("turnHint").textContent = "Describe music for MRT2 to create. Be evocative.";
+    $("turnLabel").textContent = "Your prompt";
+    audio.classList.add("hide"); audio.removeAttribute("src");
+  } else {
+    $("turnHint").textContent = "Here's what the last player's prompt produced. What do you think they wrote?";
+    $("turnLabel").textContent = "Your guess at the prompt";
+    audio.src = clipToPlay; audio.classList.remove("hide");
+  }
+  show("s-turn");
+}
+
+$("turnSubmit").onclick = async () => {
+  const text = $("turnText").value.trim();
+  if (!text) { $("turnErr").textContent = "Write something first."; return; }
+  $("turnErr").textContent = "";
+  show("s-busy");
+  try {
+    const d = await api("/api/telephone/submit", {game_id: G.game_id, text});
+    G.step = d.step; G.total = d.total; G.current_player = d.current_player; G.complete = d.complete;
+    clipToPlay = d.clip_url;       // what the NEXT player hears
+    if (G.complete) show("s-done");
+    else gotoPass();
+  } catch(e) { $("turnErr").textContent = e.message; show("s-turn"); }
+};
+
+// ── reveal ───────────────────────────────────────────────────────────────────
+$("revealBtn").onclick = async () => {
+  show("s-busy");
+  const rev = await api("/api/telephone/reveal", {game_id: G.game_id});
+  const chain = $("chain"); chain.innerHTML = "";
+  rev.chain.forEach((h, i) => {
+    if (i>0) { const a=document.createElement("div"); a.className="arrow"; a.textContent="↓"; chain.appendChild(a); }
+    const div = document.createElement("div"); div.className = "hop";
+    const badge = h.is_seed ? `<span class="badge seed">SEED</span>`
+                            : `<span class="badge score">+${h.score}</span>`;
+    div.innerHTML = `
+      <div class="who"><b>${h.player}</b>${badge}</div>
+      <div class="text">"${h.text}"</div>
+      <audio controls preload="none" src="${h.clip_url}"></audio>
+      ${h.tutor ? `<div class="tutor">${h.tutor}</div>` : ""}`;
+    chain.appendChild(div);
+  });
+  $("fidelity").textContent = (rev.fidelity!=null)
+    ? `Final sound vs. the original: ${rev.fidelity}% match`
+    : "";
+  const lb = $("leaderboard"); lb.innerHTML = "";
+  rev.leaderboard.forEach((p,i) => {
+    const row = document.createElement("div");
+    row.className = "lrow" + (i===0 ? " win" : "");
+    row.innerHTML = `<span>${i===0?"🏆 ":""}${p.player}</span><span>${p.score}</span>`;
+    lb.appendChild(row);
+  });
+  show("s-reveal");
+};
+
+$("again").onclick = () => { location.reload(); };
+
+show("s-setup");
+</script>
+</body>
+</html>

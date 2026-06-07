@@ -1,0 +1,28 @@
+# ── secrets (never commit) ──────────────────────────────
+.env
+*.env
+**/.env
+!*.env.example
+
+# ── python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# ── node ────────────────────────────────────────────────
+node_modules/
+
+# ── generated audio / model outputs (large, regenerable) ─
+outputs/
+**/outputs/
+*.wav
+!**/assets/**/*.wav
+
+# ── os / editor cruft ───────────────────────────────────
+.DS_Store
+*.log
+.idea/
+.vscode/

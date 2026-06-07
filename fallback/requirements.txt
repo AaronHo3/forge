@@ -1,0 +1,24 @@
+# Score the Story — Python dependencies
+# Install with: pip install -r requirements.txt
+
+# Audio capture (cross-platform, wraps PortAudio)
+sounddevice>=0.4.6
+
+# Audio feature extraction
+librosa>=0.10.0
+numpy>=1.24.0
+scipy>=1.11.0
+
+# MIDI output (for MIDI mode — controls MRT2 AU from a DAW)
+python-rtmidi>=1.5.0
+
+# MRT2 Python library (for Python mode — direct generation)
+# The hackathon team may provide a specific version or wheel.
+# Try: pip install magenta-rt
+# magenta-rt
+
+# Optional: faster pitch detection (if librosa.pyin is too slow)
+# crepe
+
+# Optional: semantic steering via speech-to-text
+# openai-whisper

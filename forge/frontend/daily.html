@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DAILY CHALLENGE</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+  :root{ --bg:#160f24; --bg2:#221636; --ink:#f3ecff; --muted:#b9a7e6; --accent:#ffd23f; --pink:#ff4d8d; --cyan:#34e1eb; --green:#5dffa0; --shadow:#0b0716; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:22px/1.3 'VT323',ui-monospace,monospace; min-height:100vh;
+        background-image:radial-gradient(circle at 50% -10%, #3a2168 0%, var(--bg) 60%); }
+  body::after{ content:""; position:fixed; inset:0; pointer-events:none; z-index:50; background:repeating-linear-gradient(to bottom, rgba(0,0,0,.16) 0 2px, transparent 2px 4px); opacity:.5; }
+  h1,button,.lab,.rate,.big{ font-family:'Press Start 2P',monospace; }
+  header{ padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:4px solid var(--shadow); }
+  header h1{ margin:0; font-size:16px; color:var(--accent); text-shadow:3px 3px 0 var(--pink); }
+  .hbtns{ display:flex; gap:8px; align-items:center; }
+  a.back,span.lvl{ font-family:'Press Start 2P'; font-size:9px; color:var(--ink); background:var(--bg2); border:3px solid var(--shadow); padding:8px 10px; text-decoration:none; }
+  span.lvl{ color:var(--accent); }
+  .wrap{ max-width:680px; margin:0 auto; padding:18px; }
+  .card{ background:var(--bg2); border:4px solid var(--shadow); box-shadow:6px 6px 0 var(--shadow); padding:18px; margin-bottom:16px; }
+  .lab{ font-size:9px; color:var(--cyan); letter-spacing:1px; margin:0 0 8px; }
+  .muted{ color:var(--muted); } .date{ color:var(--muted); font-size:16px; }
+  .brief{ font-family:'Press Start 2P'; font-size:18px; color:var(--accent); line-height:1.6; margin:6px 0 10px; text-shadow:2px 2px 0 var(--shadow); }
+  .banned-line{ font-size:17px; color:var(--muted); } .banned-line b{ color:var(--pink); }
+  input[type=text]{ font:22px 'VT323',monospace; padding:9px 12px; background:#100a1f; color:var(--ink); border:3px solid var(--shadow); width:100%; outline:none; }
+  input[type=text]:focus{ border-color:var(--accent); } input.bad{ border-color:var(--pink)!important; }
+  select{ font:20px 'VT323',monospace; background:#100a1f; color:var(--ink); border:3px solid var(--shadow); padding:5px 8px; }
+  button{ font-family:'Press Start 2P'; font-size:11px; color:var(--shadow); background:var(--accent); border:0; box-shadow:4px 4px 0 var(--shadow); padding:12px 14px; cursor:pointer; }
+  button:active{ transform:translate(2px,2px); box-shadow:2px 2px 0 var(--shadow); } button:disabled{ opacity:.5; cursor:not-allowed; }
+  .chipgrp{ margin:8px 0; } .chipgrp .gl{ font-family:'Press Start 2P'; font-size:8px; color:var(--cyan); margin-bottom:5px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; } .chip{ font:18px 'VT323'; background:#100a1f; color:var(--ink); border:3px solid var(--shadow); padding:3px 9px; cursor:pointer; } .chip:hover{ border-color:var(--pink); color:var(--pink); }
+  .result{ text-align:center; } .rate{ font-size:22px; padding:8px 14px; display:inline-block; border:3px solid var(--shadow); margin:6px 0; }
+  .rate.PERFECT{ color:var(--accent); border-color:var(--accent); } .rate.GREAT{ color:var(--green); border-color:var(--green); }
+  .rate.GOOD{ color:var(--cyan); } .rate.OK{ color:var(--muted); } .rate.MISS{ color:var(--pink); border-color:var(--pink); }
+  .scoreN{ font-family:'Press Start 2P'; font-size:26px; color:var(--accent); }
+  audio{ width:100%; margin:10px 0 4px; filter:hue-rotate(250deg) saturate(.8); }
+  .dl{ display:inline-block; font-family:'Press Start 2P'; font-size:8px; color:var(--cyan); text-decoration:none; border:2px solid var(--shadow); background:#100a1f; padding:6px 8px; }
+  .note{ margin-top:10px; padding:9px 12px; border-left:4px solid var(--green); background:#0f2218; text-align:left; }
+  .brow{ display:flex; justify-content:space-between; padding:8px 12px; border:3px solid var(--shadow); background:#100a1f; margin-bottom:7px; } .brow.me{ border-color:var(--accent); } .brow .s{ font-family:'Press Start 2P'; font-size:11px; color:var(--accent); }
+  .status{ color:var(--accent); min-height:24px; } .spinner{ display:inline-block; }
+  .confetti{ position:fixed; top:-10px; width:8px; height:8px; z-index:60; animation:fall linear forwards; } @keyframes fall{ to{ transform:translateY(105vh) rotate(540deg) } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>DAILY CHALLENGE</h1>
+    <div class="hbtns"><span class="lvl" id="lvl">LVL 1</span><a class="back" href="/">&lt; FORGE</a></div>
+  </header>
+  <div class="wrap">
+    <div class="card">
+      <div class="lab">TODAY'S BRIEF · <span class="date" id="date"></span></div>
+      <div class="brief" id="brief">loading...</div>
+      <div class="banned-line" id="bannedLine"></div>
+    </div>
+
+    <div class="card">
+      <div class="lab">YOUR NAME</div>
+      <input id="name" type="text" placeholder="your name" maxlength="24" />
+      <div class="lab" style="margin-top:12px">YOUR PROMPT — describe the SOUND, not the scene</div>
+      <input id="prompt" type="text" placeholder="warm cinematic strings, slow, tense" />
+      <div id="chips" style="margin-top:8px"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap">
+        <div><span class="lab" style="display:inline-block; margin:0 6px 0 0">MODEL</span>
+          <select id="engSel"><option value="mrt2">Magenta RT</option><option value="sa3">Stable Audio 3</option></select></div>
+        <button id="goBtn">COMPOSE →</button>
+      </div>
+      <div class="status" id="status" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card result hidden" id="resultCard">
+      <div class="rate" id="rate">—</div>
+      <div class="scoreN" id="scoreN"></div>
+      <audio id="clip" controls></audio><br>
+      <a class="dl hidden" id="dl">⬇ DOWNLOAD</a>
+      <div class="note" id="note"></div>
+    </div>
+
+    <div class="card">
+      <div class="lab">TODAY'S LEADERBOARD</div>
+      <div id="board"><div class="muted">be the first to play today.</div></div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+let bannedWords=[], chips={}, lastBoard=[];
+/* tiny SFX */
+const SFX=(()=>{ let c=null,m=false; function ac(){ if(!c) c=new (window.AudioContext||window.webkitAudioContext)(); if(c.state==="suspended")c.resume(); return c; }
+  function t(f,d,ty,v,w){ const x=ac(),s=x.currentTime+(w||0),o=x.createOscillator(),g=x.createGain(); o.type=ty||"square"; o.frequency.setValueAtTime(f,s); g.gain.setValueAtTime(.0001,s); g.gain.linearRampToValueAtTime(v||.12,s+.01); g.gain.exponentialRampToValueAtTime(.0001,s+d); o.connect(g); g.connect(x.destination); o.start(s); o.stop(s+d+.03); }
+  return { go(){ if(!m) t(988,.18,"square",.14); }, win(){ if(!m){ [[523,.12],[659,.12],[784,.12],[1047,.26]].reduce((a,n)=>{t(n[0],n[1],"square",.15,a); return a+n[1];},0);} }, buzz(){ if(!m) t(150,.25,"sawtooth",.13);} }; })();
+/* XP */
+function xpGet(){ return parseInt(localStorage.getItem("forge_xp")||"0",10); }
+function levelFor(x){ return Math.floor(x/500)+1; }
+function showLvl(){ $("lvl").textContent="LVL "+levelFor(xpGet()); }
+function awardXP(g){ g=Math.max(0,Math.round(g)); if(!g) return; const b=levelFor(xpGet()); const x=xpGet()+g; localStorage.setItem("forge_xp",String(x)); showLvl(); if(levelFor(x)>b) SFX.win(); }
+/* ban check */
+function localHits(p){ const tk=(p.toLowerCase().match(/[a-z]+/g)||[]); const h=new Set();
+  tk.forEach(t=>bannedWords.forEach(b=>{ if(t===b||(b.length>=4&&(t.includes(b)||b.includes(t)))) h.add(b); })); return [...h]; }
+function checkBanned(){ const h=localHits($("prompt").value); const bad=h.length>0;
+  $("prompt").classList.toggle("bad",bad); $("goBtn").disabled=bad;
+  $("bannedLine").innerHTML=`🚫 banned: <b>${bannedWords.join(", ")||"—"}</b>`+(bad?` <span style="color:var(--pink)">→ remove: ${h.join(", ")}</span>`:""); }
+function rating(s){ return s>=90?"PERFECT":s>=70?"GREAT":s>=50?"GOOD":s>=30?"OK":"MISS"; }
+function confetti(){ const cols=["#ffd23f","#ff4d8d","#34e1eb","#5dffa0","#fff"]; for(let i=0;i<40;i++){ const c=document.createElement("div"); c.className="confetti"; c.style.left=Math.random()*100+"vw"; c.style.background=cols[i%cols.length]; c.style.animationDuration=(1.6+Math.random()*1.5)+"s"; document.body.appendChild(c); setTimeout(()=>c.remove(),3400); } }
+
+function renderChips(){ const c=$("chips"); c.innerHTML=""; Object.entries(chips).forEach(([g,ws])=>{
+  const d=document.createElement("div"); d.className="chipgrp"; d.innerHTML=`<div class="gl">${g}</div>`;
+  const r=document.createElement("div"); r.className="chips"; ws.forEach(w=>{ const b=document.createElement("div"); b.className="chip"; b.textContent=w;
+    b.onclick=()=>{ const i=$("prompt"); const v=i.value.trim(); i.value=v?v.replace(/,\s*$/,"")+", "+w:w; i.focus(); checkBanned(); }; r.appendChild(b); }); d.appendChild(r); c.appendChild(d); }); }
+function renderBoard(rows){ if(rows) lastBoard=rows; rows=lastBoard; const me=($("name").value||"").trim();
+  $("board").innerHTML=(rows&&rows.length)?rows.map((s,i)=>`<div class="brow ${s.name===me?'me':''}"><span>${["🥇","🥈","🥉"][i]||(i+1)} ${s.name}</span><span class="s">${s.score}</span></div>`).join(""):'<div class="muted">be the first to play today.</div>'; }
+
+async function load(){ const d=await (await fetch("/api/daily")).json();
+  $("date").textContent=d.date; $("brief").textContent="“"+d.brief.toUpperCase()+"”";
+  bannedWords=d.banned||[]; chips=d.chips||{}; renderChips(); checkBanned(); renderBoard(d.leaderboard);
+  const nm=localStorage.getItem("forge_name"); if(nm) $("name").value=nm; }
+
+async function play(){ const name=($("name").value||"").trim()||"anon"; const prompt=$("prompt").value.trim();
+  if(!prompt){ $("status").textContent="write a prompt first."; return; }
+  if(localHits(prompt).length){ $("status").textContent="remove the brief's words first."; SFX.buzz(); checkBanned(); return; }
+  localStorage.setItem("forge_name",name); SFX.go();
+  $("goBtn").disabled=true; $("status").textContent="composing... the model takes a few seconds.";
+  try{
+    const r=await (await fetch("/api/daily/play",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,prompt,engine:$("engSel").value})})).json();
+    if(!r.ok){ $("status").textContent=r.error||"failed."; $("goBtn").disabled=false; SFX.buzz(); return; }
+    $("status").textContent=r.improved?"NEW BEST!":("your best today: "+r.best);
+    const rt=rating(r.score); $("resultCard").classList.remove("hidden");
+    $("rate").textContent=rt; $("rate").className="rate "+rt; $("scoreN").textContent=r.score+" / 100";
+    $("clip").src=r.clip_url; $("dl").href=r.clip_url; $("dl").download="daily-"+name+".wav"; $("dl").classList.remove("hidden");
+    $("note").innerHTML="🎓 "+(r.note||""); renderBoard(r.leaderboard);
+    awardXP(r.score); if(r.score>=70){ SFX.win(); confetti(); }
+  }catch(e){ $("status").textContent="error: "+e.message; }
+  $("goBtn").disabled=false;
+}
+
+$("prompt").addEventListener("input", checkBanned);
+$("prompt").addEventListener("keydown", e=>{ if(e.key==="Enter") play(); });
+$("name").addEventListener("input", ()=>renderBoard());
+$("goBtn").onclick=play;
+showLvl(); load();
+</script>
+</body>
+</html>

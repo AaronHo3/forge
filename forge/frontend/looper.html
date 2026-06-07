@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forge - Looper</title>
+<style>
+  :root{ --bg:#0e0f13; --panel:#171922; --panel2:#1f2230; --ink:#e8eaf0; --muted:#9aa0b4;
+         --accent:#2dd4bf; --line:#2a2e3e; --good:#34d399; --warn:#fbbf24; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header{ padding:18px 24px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1{ margin:0; font-size:19px; } header h1 span{ color:var(--accent); }
+  header p{ margin:3px 0 0; color:var(--muted); font-size:13px; max-width:640px; }
+  a.navlink{ text-decoration:none; color:var(--muted); font-weight:600; font-size:14px; border:1px solid var(--line); border-radius:12px; padding:9px 14px; }
+  .wrap{ max-width:1000px; margin:0 auto; padding:22px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:16px; }
+  .lab{ font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 9px; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  select,input[type=number]{ padding:9px 12px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:10px; font-size:15px; }
+  input[type=number]{ width:78px; }
+  button{ padding:10px 15px; border:0; border-radius:11px; cursor:pointer; font-weight:700; color:#04231f; background:var(--accent); }
+  button.ghost{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); }
+  button.on{ background:var(--good); color:#04231a; }
+  button.solo.on{ background:var(--warn); color:#231a04; }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .muted{ color:var(--muted); font-size:13px; }
+  .status{ color:var(--accent); font-size:13px; min-height:18px; }
+  /* instrument picker */
+  .picker{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  @media(max-width:760px){ .picker{ grid-template-columns:repeat(2,1fr);} }
+  .ins{ background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px; text-align:center; cursor:pointer; font-weight:700; }
+  .ins:hover{ border-color:var(--accent); transform:translateY(-2px); }
+  .ins .ic{ font-size:22px; display:block; margin-bottom:5px; }
+  /* channel strips */
+  .tracks{ display:flex; flex-direction:column; gap:12px; }
+  .strip{ background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:14px; }
+  .strip .top{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .strip .nm{ font-weight:800; font-size:16px; flex:1; }
+  .strip .x{ background:transparent; color:var(--muted); border:0; font-size:18px; padding:2px 8px; }
+  .ctls{ display:grid; grid-template-columns:1.4fr 1.4fr auto auto auto; gap:14px; align-items:center; }
+  @media(max-width:760px){ .ctls{ grid-template-columns:1fr 1fr; } }
+  .fader{ display:flex; flex-direction:column; gap:3px; }
+  .fader span{ font-size:11px; color:var(--muted); }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  .meta{ font-size:12px; color:var(--muted); margin-top:8px; }
+  .empty{ color:var(--muted); font-style:italic; padding:8px 0; }
+  .bigbtn{ font-size:16px; padding:13px 22px; }
+</style>
+<link rel="stylesheet" href="/app.css" />
+</head>
+<body class="p-jam">
+  <header>
+    <div style="flex:1">
+      <h1><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4"/><circle cx="15" cy="16" r="2.4"/></svg></span> Looper</h1>
+      <p>Pick an instrument and the AI renders a loop in your key and tempo. Stack a few, then mix them into a track. No instrument skills needed, every layer is a clean loop you can balance.</p>
+    </div>
+    <a class="navlink" href="/">← Workbench</a>
+  </header>
+
+  <div class="wrap">
+    <!-- session -->
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div class="row">
+          <div><div class="lab">Key</div>
+            <div class="row"><select id="root"></select>
+              <select id="mode"><option value="major">Major</option><option value="minor">Minor</option></select></div></div>
+          <div><div class="lab">Tempo</div>
+            <div class="row"><button id="autoBtn" class="on">Auto</button>
+              <input id="bpm" type="number" min="50" max="180" value="100" disabled /></div></div>
+          <div><div class="lab">Bars</div><select id="bars"><option>2</option><option>4</option></select></div>
+          <div><div class="lab">Model</div><select id="engSel"><option value="mrt2">Magenta RT</option><option value="sa3">Stable Audio 3</option></select></div>
+        </div>
+        <div class="row">
+          <button id="playBtn" class="bigbtn" disabled>▶ Play</button>
+        </div>
+      </div>
+      <div class="muted" id="lockNote" style="margin-top:8px">Key, tempo, and bars lock once you add your first loop, so every layer stays in sync.</div>
+      <div class="status" id="status" style="margin-top:6px"></div>
+    </div>
+
+    <!-- instrument picker -->
+    <div class="card">
+      <div class="lab">Add an instrument</div>
+      <div class="picker" id="picker"></div>
+    </div>
+
+    <!-- tracks -->
+    <div class="card">
+      <div class="lab">Your layers</div>
+      <div class="tracks" id="tracks"><div class="empty">No layers yet. Add an instrument above.</div></div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ctx=null, master=null;
+let bpm=100, bars=2, L=0, locked=false, autoTempo=true, sessionBpm=null;
+let tracks=[], playing=false, startTime=null, idc=0, rendering=false;
+
+function ensureCtx(){ if(ctx) return; ctx=new (window.AudioContext||window.webkitAudioContext)();
+  master=ctx.createGain(); master.gain.value=0.9; master.connect(ctx.destination); }
+function keyStr(){ return $("root").value+" "+$("mode").value; }
+function setStatus(t){ $("status").textContent=t||""; }
+
+// ── instruments ────────────────────────────────────────────────────────────
+async function loadInstruments(){
+  const r=await (await fetch("/api/looper/instruments")).json();
+  const p=$("picker"); p.innerHTML="";
+  r.instruments.forEach(i=>{ const b=document.createElement("div"); b.className="ins";
+    b.innerHTML=`<span class="ic">${i.icon}</span>${i.label}`;
+    b.onclick=()=>addTrack(i); p.appendChild(b); });
+}
+function initRoots(){ ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"].forEach(n=>{
+  const o=document.createElement("option"); o.value=n; o.textContent=n; $("root").appendChild(o); }); $("root").value="C"; }
+
+// ── add / render a track ───────────────────────────────────────────────────
+async function addTrack(inst){
+  if(rendering) return;
+  ensureCtx();
+  rendering=true; setStatus(`Rendering ${inst.label}... the model takes a few seconds.`);
+  try{
+    const body={instrument:inst.id, key:keyStr(), bpm:bpmToSend(), bars:parseInt($("bars").value,10), engine:$("engSel").value};
+    const res=await (await fetch("/api/looper/render",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})).json();
+    if(!res.ok){ setStatus(res.error||"Render failed."); rendering=false; return; }
+    const buf=await decodeURL(res.clip.url);
+    if(!locked){ lockSession(res); }
+    const t={ id:++idc, inst:inst.id, label:inst.label, icon:inst.icon,
+              buffer:buf, windows:res.windows, win:0, volume:0.85, muted:false, solo:false,
+              tempoDetected:res.tempo_detected, stretch:res.stretch, src:null,
+              gain:ctx.createGain(), panner:ctx.createStereoPanner() };
+    t.gain.connect(t.panner); t.panner.connect(master); t.gain.gain.value=t.volume;
+    tracks.push(t); renderTracks(); applyGains();
+    $("playBtn").disabled=false;
+    if(playing) startTrack(t, nextBoundary());
+    setStatus(`${inst.label} added` + (res.tempo_detected?` (model played ~${res.tempo_detected}, session ${Math.round(res.bpm)} bpm)`:""));
+  }catch(e){ setStatus("Error: "+e.message); }
+  rendering=false;
+}
+function bpmToSend(){ if(locked) return sessionBpm; return autoTempo?0:(parseFloat($("bpm").value)||100); }
+function lockSession(res){
+  locked=true; sessionBpm=res.bpm; bpm=res.bpm; bars=parseInt($("bars").value,10); L=res.loop_secs;
+  $("bpm").value=Math.round(res.bpm);
+  ["root","mode","bpm","bars","autoBtn"].forEach(id=>$(id).disabled=true);
+  $("lockNote").textContent=`Locked: ${$("root").value} ${$("mode").value}, ${Math.round(bpm)} bpm, ${bars} bars (${L.toFixed(1)}s loop). Later loops align to this tempo.`;
+}
+async function decodeURL(url){ const ab=await (await fetch(url)).arrayBuffer(); return await ctx.decodeAudioData(ab); }
+
+// ── transport + sync ───────────────────────────────────────────────────────
+function nextBoundary(){ if(startTime==null) return ctx.currentTime+0.12;
+  const k=Math.ceil((ctx.currentTime-startTime)/L); return startTime+Math.max(0,k)*L; }
+function startTrack(t, when){
+  const s=ctx.createBufferSource(); s.buffer=t.buffer; s.loop=true;
+  s.loopStart=t.win*L; s.loopEnd=(t.win+1)*L; s.connect(t.gain);
+  s.start(when, t.win*L); t.src=s;
+}
+function stopTrack(t, when){ if(t.src){ try{ t.src.stop(when||ctx.currentTime); }catch(e){} t.src=null; } }
+function play(){ if(playing||!tracks.length) return; ensureCtx(); if(ctx.state==="suspended") ctx.resume();
+  startTime=ctx.currentTime+0.15; tracks.forEach(t=>startTrack(t, startTime)); playing=true;
+  $("playBtn").textContent="■ Stop"; $("playBtn").classList.add("on"); }
+function stop(){ if(!playing) return; tracks.forEach(t=>stopTrack(t)); playing=false; startTime=null;
+  $("playBtn").textContent="▶ Play"; $("playBtn").classList.remove("on"); }
+
+// ── per-track controls ─────────────────────────────────────────────────────
+function applyGains(){ const soloAny=tracks.some(t=>t.solo);
+  tracks.forEach(t=>{ const g=(soloAny&&!t.solo)?0:(t.muted?0:t.volume); t.gain.gain.value=g; }); }
+function newTake(t){ t.win=(t.win+1)%t.windows;
+  if(playing){ const b=nextBoundary(); stopTrack(t,b); startTrack(t,b); }
+  renderTracks(); }
+async function regen(t){
+  if(rendering) return; rendering=true; setStatus(`Re-rendering ${t.label}...`);
+  try{
+    const body={instrument:t.inst, key:keyStr(), bpm:bpm, bars:bars, engine:$("engSel").value};
+    const res=await (await fetch("/api/looper/render",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})).json();
+    if(res.ok){ t.buffer=await decodeURL(res.clip.url); t.windows=res.windows; t.win=0;
+      if(playing){ const b=nextBoundary(); stopTrack(t,b); startTrack(t,b); } renderTracks(); setStatus(`${t.label} re-rendered.`); }
+    else setStatus(res.error||"Render failed.");
+  }catch(e){ setStatus("Error: "+e.message); }
+  rendering=false;
+}
+function removeTrack(t){ stopTrack(t); try{ t.panner.disconnect(); t.gain.disconnect(); }catch(e){}
+  tracks=tracks.filter(x=>x!==t); renderTracks(); applyGains(); if(!tracks.length){ stop(); $("playBtn").disabled=true; } }
+
+function renderTracks(){
+  const el=$("tracks");
+  if(!tracks.length){ el.innerHTML='<div class="empty">No layers yet. Add an instrument above.</div>'; return; }
+  el.innerHTML="";
+  tracks.forEach(t=>{
+    const d=document.createElement("div"); d.className="strip";
+    d.innerHTML=`
+      <div class="top"><span>${t.icon}</span><span class="nm">${t.label}</span>
+        <button class="x" title="remove">✕</button></div>
+      <div class="ctls">
+        <div class="fader"><span>Volume</span><input type="range" class="vol" min="0" max="1" step="0.02" value="${t.volume}"></div>
+        <div class="fader"><span>Pan</span><input type="range" class="pan" min="-1" max="1" step="0.05" value="0"></div>
+        <button class="ghost mute">${t.muted?"Muted":"Mute"}</button>
+        <button class="ghost solo ${t.solo?'on':''}">Solo</button>
+        <button class="ghost take">New take ${t.win+1}/${t.windows}</button>
+      </div>
+      <div class="meta">${Math.round(bpm)} bpm${t.tempoDetected?` · model ~${Math.round(t.tempoDetected)}`:""}${(t.stretch&&Math.abs(t.stretch-1)>0.03)?` · stretched ${t.stretch}×`:""} · ${t.windows} takes · <button class="ghost regen" style="padding:4px 10px;font-size:12px">Re-roll</button></div>`;
+    d.querySelector(".x").onclick=()=>removeTrack(t);
+    d.querySelector(".vol").oninput=e=>{ t.volume=parseFloat(e.target.value); applyGains(); };
+    d.querySelector(".pan").oninput=e=>{ t.panner.pan.value=parseFloat(e.target.value); };
+    d.querySelector(".mute").onclick=e=>{ t.muted=!t.muted; e.target.textContent=t.muted?"Muted":"Mute"; e.target.classList.toggle("on",t.muted); applyGains(); };
+    d.querySelector(".solo").onclick=e=>{ t.solo=!t.solo; e.target.classList.toggle("on",t.solo); applyGains(); };
+    d.querySelector(".take").onclick=()=>newTake(t);
+    d.querySelector(".regen").onclick=()=>regen(t);
+    el.appendChild(d);
+  });
+}
+
+$("autoBtn").onclick=()=>{ if(locked) return; autoTempo=!autoTempo; $("autoBtn").classList.toggle("on",autoTempo); $("bpm").disabled=autoTempo; };
+$("playBtn").onclick=()=>{ playing?stop():play(); };
+window.addEventListener("beforeunload",()=>{ try{ stop(); }catch(e){} });
+initRoots(); loadInstruments();
+</script>
+</body>
+</html>

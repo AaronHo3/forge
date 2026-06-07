@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forge · Looper</title>
+<style>
+  :root{ --bg:#0e0f13; --panel:#171922; --panel2:#1f2230; --ink:#e8eaf0; --muted:#9aa0b4;
+         --accent:#2dd4bf; --line:#2a2e3e; --good:#34d399; --warn:#fbbf24; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header{ padding:18px 24px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1{ margin:0; font-size:19px; } header h1 span{ color:var(--accent); }
+  header p{ margin:3px 0 0; color:var(--muted); font-size:13px; max-width:640px; }
+  a.navlink{ text-decoration:none; color:var(--muted); font-weight:600; font-size:14px; border:1px solid var(--line); border-radius:12px; padding:9px 14px; }
+  .wrap{ max-width:920px; margin:0 auto; padding:22px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:16px; }
+  .lab{ font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 9px; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input[type=text]{ padding:11px 13px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:10px; font-size:15px; }
+  .code-in{ text-transform:uppercase; letter-spacing:.3em; font-weight:700; width:120px; text-align:center; }
+  button{ padding:10px 15px; border:0; border-radius:11px; cursor:pointer; font-weight:700; color:#04231f; background:var(--accent); }
+  button.ghost{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); }
+  button.on{ background:var(--good); color:#04231a; }
+  button.solo.on{ background:var(--warn); color:#231a04; }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .hidden{ display:none; }
+  .muted{ color:var(--muted); font-size:13px; }
+  .status{ color:var(--accent); font-size:13px; min-height:18px; }
+  .bigcode{ font:800 40px/1 'JetBrains Mono',ui-monospace,monospace; letter-spacing:.16em; color:var(--accent); }
+  .picker{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  @media(max-width:760px){ .picker{ grid-template-columns:repeat(2,1fr);} }
+  .ins{ background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:13px; text-align:center; cursor:pointer; font-weight:700; }
+  .ins:hover{ border-color:var(--accent); transform:translateY(-2px); }
+  .ins.mine{ border-color:var(--accent); background:color-mix(in srgb,var(--accent) 16%,var(--panel2)); }
+  .ins .ic{ font-size:22px; display:block; margin-bottom:5px; }
+  .strip{ background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; }
+  .strip.me{ border-color:var(--accent); }
+  .strip .top{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .strip .nm{ font-weight:800; }
+  .strip .who{ color:var(--muted); font-size:13px; }
+  .badge{ font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+  .badge.live{ color:var(--good); border-color:var(--good); }
+  .badge.rend{ color:var(--warn); border-color:var(--warn); }
+  .ctls{ display:grid; grid-template-columns:1.4fr 1.4fr auto auto auto auto; gap:12px; align-items:center; }
+  @media(max-width:760px){ .ctls{ grid-template-columns:1fr 1fr; } }
+  .fader{ display:flex; flex-direction:column; gap:3px; } .fader span{ font-size:11px; color:var(--muted); }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  .bar{ height:6px; background:var(--line); border-radius:3px; overflow:hidden; } .bar>div{ height:100%; background:var(--accent); }
+  .meta{ font-size:12px; color:var(--muted); margin-top:8px; }
+  .empty{ color:var(--muted); font-style:italic; }
+</style>
+<link rel="stylesheet" href="/app.css" />
+<script src="/jam-client.js" defer></script>
+</head>
+<body class="p-looper">
+  <header>
+    <div style="flex:1">
+      <h1><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4"/><circle cx="15" cy="16" r="2.4"/></svg></span> Looper Room</h1>
+      <p>Everyone picks an instrument. The AI plays your part, you tune it, and the whole room hears one band locked in time. No instrument skills needed.</p>
+    </div>
+    <a class="navlink" href="/">← Workbench</a>
+  </header>
+
+  <div class="wrap">
+    <!-- LANDING -->
+    <div id="landing" class="card">
+      <div class="lab">Your name</div>
+      <input id="name" type="text" placeholder="your name" maxlength="24" style="width:100%" />
+      <div class="row" style="margin-top:16px">
+        <button id="createBtn">Open a room</button>
+        <span class="muted">or</span>
+        <input id="codeIn" class="code-in" type="text" placeholder="CODE" maxlength="4" />
+        <button id="joinBtn" class="ghost">Join</button>
+      </div>
+      <div class="status" id="landErr" style="margin-top:10px"></div>
+    </div>
+
+    <!-- ROOM -->
+    <div id="room" class="hidden">
+      <div class="card">
+        <div class="row" style="justify-content:space-between; align-items:flex-start">
+          <div><div class="lab">Room code</div><div class="bigcode" id="code">----</div>
+            <div class="muted" id="shareLine"></div></div>
+          <div style="text-align:right">
+            <div class="muted" id="sessionInfo"></div>
+            <div class="row" style="justify-content:flex-end; margin-top:10px">
+              <select id="engSel" title="which model renders the loops"><option value="mrt2">Magenta RT</option><option value="sa3">Stable Audio 3</option></select>
+              <button id="atBtn" class="ghost hidden">Send to Audiotool</button>
+              <button id="atSa3Btn" class="ghost hidden" title="Run each stem through SA3 then send (slower)">Produce with SA3 + send</button>
+            </div>
+          </div>
+        </div>
+        <div class="status" id="status" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <div class="lab">Your instrument — pick one to join the band (re-pick to switch)</div>
+        <div class="picker" id="picker"></div>
+      </div>
+
+      <div class="card">
+        <div class="lab">The band</div>
+        <div id="board"><div class="empty">No one is playing yet.</div></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ws=null, player=null, me="", isHost=false, instruments=[], lastRoom=null, promptDraft=null;
+
+function show(v){ $("landing").classList.toggle("hidden", v!=="land"); $("room").classList.toggle("hidden", v!=="room"); }
+function wsUrl(){ return (location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/ws/looper-room"; }
+function setStatus(t){ $("status").textContent=t||""; }
+
+async function connect(initMsg){
+  player=JamPlayer(); await player.start();
+  ws=new WebSocket(wsUrl()); ws.binaryType="arraybuffer";
+  ws.onopen=()=>ws.send(JSON.stringify(initMsg));
+  ws.onmessage=(e)=>{ if(typeof e.data!=="string"){ player.feed(e.data); return; } handle(JSON.parse(e.data)); };
+  ws.onclose=()=>setStatus("Disconnected.");
+}
+function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+
+function createRoom(){ const n=$("name").value.trim(); if(!n){ $("landErr").textContent="Enter your name first."; return; } connect({action:"create", name:n}); }
+function joinRoom(){ const n=$("name").value.trim(); const c=$("codeIn").value.trim().toUpperCase();
+  if(!n){ $("landErr").textContent="Enter your name first."; return; }
+  if(c.length<4){ $("landErr").textContent="Enter the 4-letter code."; return; }
+  connect({action:"join", code:c, name:n}); }
+
+function handle(m){
+  if(m.type==="joined"){ me=m.name; isHost=m.host; instruments=m.instruments||[]; show("room");
+    $("code").textContent=m.code; $("shareLine").textContent="Others: open "+location.origin+"/looper-room and enter "+m.code;
+    $("atBtn").classList.toggle("hidden", !isHost); $("atSa3Btn").classList.toggle("hidden", !isHost); renderPicker(null); }
+  else if(m.type==="room"){ lastRoom=m; renderRoom(m); }
+  else if(m.type==="audiotool"){
+    if(m.done) $("status").innerHTML=`Sent ${m.count} stems to Audiotool. ${m.url?`<a href="${m.url}" target="_blank" style="color:var(--accent)">Open project →</a>`:""}`;
+    else if(m.ok) setStatus(m.status||"Sending to Audiotool...");
+    else setStatus(m.error||"Audiotool error.");
+  }
+  else if(m.type==="error"){ setStatus(m.error); }
+}
+
+function myTrack(m){ return (m.tracks||[]).find(t=>t.owner===me) || null; }
+function renderPicker(mt){
+  const p=$("picker"); p.innerHTML="";
+  instruments.forEach(i=>{ const b=document.createElement("div");
+    b.className="ins"+(mt&&mt.instrument===i.id?" mine":"");
+    b.innerHTML=`<span class="ic">${i.icon}</span>${i.label}`;
+    b.onclick=()=>{ send({action:"pick", instrument:i.id}); setStatus(`Rendering ${i.label}... a few seconds.`); };
+    p.appendChild(b); });
+}
+function renderRoom(m){
+  const mt=myTrack(m);
+  if(m.engine && $("engSel")) $("engSel").value=m.engine;
+  renderPicker(mt);
+  $("sessionInfo").innerHTML = m.session_bpm>0
+    ? `${m.key} · ${Math.round(m.session_bpm)} bpm · ${m.loop_secs}s loop · ${m.tracks.length} playing`
+    : `${m.key} · tempo set by the first loop`;
+  const board=$("board");
+  if(!m.tracks.length){ board.innerHTML='<div class="empty">No one is playing yet. Pick an instrument above.</div>'; return; }
+  board.innerHTML="";
+  m.tracks.forEach(t=>{
+    const mine=t.owner===me;
+    const d=document.createElement("div"); d.className="strip"+(mine?" me":"");
+    const badge = t.rendering?'<span class="badge rend">rendering…</span>':(t.ready?'<span class="badge live">live</span>':'<span class="badge">queued</span>');
+    let html=`<div class="top"><span style="font-size:20px">${t.icon}</span>
+      <span class="nm">${t.label}</span><span class="who">${mine?"you":t.owner}</span>${badge}</div>`;
+    if(mine){
+      html+=`<div class="ctls">
+        <div class="fader"><span>Volume</span><input type="range" class="vol" min="0" max="1.3" step="0.02" value="${t.vol}"></div>
+        <div class="fader"><span>Pan</span><input type="range" class="pan" min="-1" max="1" step="0.05" value="${t.pan}"></div>
+        <button class="ghost mute ${t.muted?'on':''}">${t.muted?'Muted':'Mute'}</button>
+        <button class="ghost solo ${t.solo?'on':''}">Solo</button>
+        <button class="ghost take" ${t.windows>1?'':'disabled'}>Take ${t.win+1}/${t.windows}</button>
+        <button class="ghost reroll">Re-roll</button></div>
+        <div class="row" style="margin-top:10px">
+          <input type="text" class="cp" placeholder="describe this instrument's sound, then re-prompt..." style="flex:1">
+          <button class="ghost cpset">Re-prompt</button></div>
+        <div class="meta">prompt: <em>${(t.prompt||"").replace(/</g,"&lt;")}</em> · ${t.tempo_detected?`model ~${Math.round(t.tempo_detected)} · `:""}${(t.stretch&&Math.abs(t.stretch-1)>0.03)?`stretched ${t.stretch}× · `:""}<button class="ghost rm" style="padding:3px 9px;font-size:12px">Leave the band</button></div>`;
+    } else {
+      html+=`<div class="row"><div style="flex:1"><div class="bar"><div style="width:${Math.round((t.muted?0:t.vol/1.3)*100)}%"></div></div></div>
+        ${t.muted?'<span class="badge">muted</span>':''}${t.solo?'<span class="badge live">solo</span>':''}</div>`;
+    }
+    d.innerHTML=html;
+    if(mine){
+      d.querySelector(".vol").addEventListener("change",e=>send({action:"vol", value:parseFloat(e.target.value)}));
+      d.querySelector(".pan").addEventListener("change",e=>send({action:"pan", value:parseFloat(e.target.value)}));
+      d.querySelector(".mute").onclick=()=>send({action:"mute", on:!t.muted});
+      d.querySelector(".solo").onclick=()=>send({action:"solo", on:!t.solo});
+      d.querySelector(".take").onclick=()=>send({action:"newtake"});
+      d.querySelector(".reroll").onclick=()=>{ send({action:"reroll"}); setStatus("Re-rolling your part..."); };
+      d.querySelector(".rm").onclick=()=>send({action:"remove"});
+      const cp=d.querySelector(".cp");
+      if(promptDraft!==null) cp.value=promptDraft;
+      cp.addEventListener("input",e=>{ promptDraft=e.target.value; });
+      const sendPrompt=()=>{ const v=cp.value.trim(); if(!v) return; promptDraft=null;
+        send({action:"prompt", text:v}); setStatus("Re-prompting your instrument..."); };
+      d.querySelector(".cpset").onclick=sendPrompt;
+      cp.addEventListener("keydown",e=>{ if(e.key==="Enter") sendPrompt(); });
+    }
+    board.appendChild(d);
+  });
+  setStatus("");
+}
+
+$("engSel").onchange=()=>{ send({action:"engine", engine:$("engSel").value}); setStatus("Model set to "+$("engSel").options[$("engSel").selectedIndex].text+" for new loops."); };
+$("atBtn").onclick=()=>{ send({action:"audiotool"}); setStatus("Sending stems to Audiotool..."); };
+$("atSa3Btn").onclick=()=>{ send({action:"audiotool", finish:true}); setStatus("Producing stems with SA3, this is slower..."); };
+$("createBtn").onclick=createRoom;
+$("joinBtn").onclick=joinRoom;
+$("codeIn").addEventListener("keydown",e=>{ if(e.key==="Enter") joinRoom(); });
+window.addEventListener("beforeunload",()=>{ try{ if(ws){ send({action:"stop"}); ws.close(); } }catch(e){} });
+</script>
+</body>
+</html>

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forge - Ensemble Room</title>
+<style>
+  :root{ --bg:#0e0f13; --panel:#171922; --panel2:#1f2230; --ink:#e8eaf0; --muted:#9aa0b4;
+         --accent:#a78bfa; --line:#2a2e3e; --good:#34d399;
+         --harmonist:#34d399; --texturist:#60a5fa; --atmosphere:#a78bfa; --drive:#fb7185; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header{ padding:18px 24px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1{ margin:0; font-size:19px; } header h1 span{ color:var(--accent); }
+  header p{ margin:3px 0 0; color:var(--muted); font-size:13px; max-width:640px; }
+  a.navlink{ text-decoration:none; color:var(--muted); font-weight:600; font-size:14px; border:1px solid var(--line); border-radius:12px; padding:9px 14px; }
+  .wrap{ max-width:920px; margin:0 auto; padding:22px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:16px; }
+  .lab{ font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 9px; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input[type=text]{ padding:11px 13px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:10px; font-size:15px; outline:none; }
+  input[type=text]:focus{ border-color:var(--accent); }
+  .code-in{ text-transform:uppercase; letter-spacing:.3em; font-weight:700; width:120px; text-align:center; }
+  select{ padding:9px 12px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:10px; }
+  button{ padding:11px 16px; border:0; border-radius:11px; cursor:pointer; font-weight:700; color:#1a1130; background:var(--accent); }
+  button.ghost{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); }
+  button.on{ background:var(--good); color:#04231a; }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .hidden{ display:none; }
+  .bigcode{ font:800 40px/1 'JetBrains Mono',ui-monospace,monospace; letter-spacing:.16em; color:var(--accent); }
+  /* seats */
+  .seats{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media(max-width:760px){ .seats{ grid-template-columns:repeat(2,1fr);} }
+  .seat{ border:1px solid var(--line); border-radius:14px; padding:16px; background:var(--panel2); text-align:center; cursor:pointer; transition:transform .07s, border-color .15s; }
+  .seat:hover{ transform:translateY(-2px); }
+  .seat .nm{ font-weight:800; font-size:16px; }
+  .seat .dr{ color:var(--muted); font-size:12px; margin:6px 0 10px; min-height:32px; }
+  .seat .who{ font-size:13px; font-weight:700; }
+  .seat.harmonist{ box-shadow:inset 0 -3px 0 var(--harmonist); } .seat.harmonist .nm{ color:var(--harmonist); }
+  .seat.texturist{ box-shadow:inset 0 -3px 0 var(--texturist); } .seat.texturist .nm{ color:var(--texturist); }
+  .seat.atmosphere{ box-shadow:inset 0 -3px 0 var(--atmosphere); } .seat.atmosphere .nm{ color:var(--atmosphere); }
+  .seat.drive{ box-shadow:inset 0 -3px 0 var(--drive); } .seat.drive .nm{ color:var(--drive); }
+  .seat.mine{ border-color:var(--ink); }
+  .seat.taken{ opacity:.7; cursor:default; }
+  .empty{ color:var(--muted); font-style:italic; }
+  /* now playing */
+  .np{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media(max-width:760px){ .np{ grid-template-columns:repeat(2,1fr);} }
+  .npc{ background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:13px; }
+  .npc .k{ font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  .npc .v{ font-weight:700; margin-top:4px; min-height:22px; font-size:15px; }
+  /* chord pads */
+  .pads{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; }
+  @media(max-width:760px){ .pads{ grid-template-columns:repeat(4,1fr);} }
+  .pad{ background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:13px 6px; text-align:center; cursor:pointer; }
+  .pad:hover{ transform:translateY(-2px); } .pad .rom{ font:800 19px/1 'JetBrains Mono',monospace; }
+  .pad .nm2{ font-size:12px; color:var(--muted); margin-top:4px; }
+  .pad.active{ border-color:var(--ink); background:color-mix(in srgb,var(--harmonist) 14%,var(--panel2)); }
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{ background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:8px 13px; font-size:13px; font-weight:600; cursor:pointer; }
+  .chip:hover{ border-color:var(--accent); }
+  input[type=range]{ width:220px; accent-color:var(--accent); }
+  .status{ color:var(--accent); font-size:13px; min-height:18px; }
+  .muted{ color:var(--muted); font-size:13px; }
+  .feed{ font-size:13px; color:var(--muted); min-height:18px; }
+  .feed a{ color:var(--accent); }
+  .toggle{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-weight:700; }
+  .toggle.on{ background:var(--harmonist); color:#04231a; }
+  .brief{ font-size:22px; font-weight:800; margin:4px 0 12px; letter-spacing:-.01em; }
+  .tbar{ height:8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .tbar > div{ height:100%; width:100%; background:var(--accent); transition:width .2s linear; }
+  .knob{ display:flex; flex-direction:column; gap:6px; }
+  .knob .kv{ font-size:12px; color:var(--muted); }
+</style>
+<link rel="stylesheet" href="/app.css" />
+<script src="/jam-client.js" defer></script>
+</head>
+<body class="p-jam">
+  <header>
+    <div style="flex:1">
+      <h1><span>◆</span> Ensemble Room</h1>
+      <p>A live band with no instruments. Each player takes a seat and steers one part of one shared AI stream. Perform together, capture the take, send it straight to Audiotool.</p>
+    </div>
+    <a class="navlink" href="/">← Workbench</a>
+  </header>
+
+  <div class="wrap">
+    <!-- LANDING -->
+    <div id="landing" class="card">
+      <div class="lab">Your name</div>
+      <input id="name" type="text" placeholder="your name" maxlength="24" style="width:100%" />
+      <div class="row" style="margin-top:16px">
+        <button id="createBtn">Open a room</button>
+        <span class="muted">or</span>
+        <input id="codeIn" class="code-in" type="text" placeholder="CODE" maxlength="4" />
+        <button id="joinBtn" class="ghost">Join</button>
+      </div>
+      <div class="status" id="landErr" style="margin-top:10px"></div>
+    </div>
+
+    <!-- ROOM -->
+    <div id="room" class="hidden">
+      <div class="card">
+        <div class="row" style="justify-content:space-between; align-items:flex-start">
+          <div>
+            <div class="lab">Room code</div>
+            <div class="bigcode" id="code">----</div>
+            <div class="muted" id="shareLine"></div>
+          </div>
+          <div class="row">
+            <button id="startBtn" class="hidden">Start the band</button>
+            <button id="chalBtn" class="ghost hidden">Start a challenge</button>
+            <button id="saveBtn" class="ghost hidden">Capture take</button>
+            <button id="atBtn" class="ghost hidden">Send to Audiotool</button>
+          </div>
+        </div>
+        <div class="status" id="status" style="margin-top:10px"></div>
+        <div class="feed" id="feed"></div>
+      </div>
+
+      <!-- challenge -->
+      <div class="card hidden" id="chalCard">
+        <div class="lab">Challenge — steer the band toward the brief, together</div>
+        <div class="brief" id="chalBrief"></div>
+        <div class="tbar hidden" id="chalTimerWrap"><div id="chalTimer"></div></div>
+        <div id="chalResult" class="hidden" style="margin-top:10px">
+          <div class="muted" id="chalRecap"></div>
+          <div class="row" style="margin-top:10px">
+            <button id="reactBtn" class="ghost">👍 <span id="reactCount">0</span></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- seats -->
+      <div class="card">
+        <div class="lab">Seats — claim one to drive a part of the sound</div>
+        <div class="seats" id="seats"></div>
+      </div>
+
+      <!-- now playing (shared) -->
+      <div class="card" id="npCard">
+        <div class="lab">Now playing — what the ensemble is doing right now</div>
+        <div class="np">
+          <div class="npc"><div class="k">Harmony</div><div class="v" id="npChord">free</div></div>
+          <div class="npc"><div class="k">Lead texture</div><div class="v" id="npLead">—</div></div>
+          <div class="npc"><div class="k">Atmosphere</div><div class="v" id="npAtmos">—</div></div>
+          <div class="npc"><div class="k">Drive</div><div class="v" id="npDrive">—</div></div>
+        </div>
+      </div>
+
+      <!-- my controls -->
+      <div class="card" id="ctlCard">
+        <div class="lab" id="ctlLab">Your controls</div>
+        <div id="controls"><div class="muted">Take a seat above to start driving the sound.</div></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ws=null, player=null, me="", isHost=false, mySeat=null, seatInfo={}, textures=[];
+let keyData=null, activeDeg=null, lastCh=null, sev7=false, chalInt=null;
+
+function show(view){ $("landing").classList.toggle("hidden", view!=="land"); $("room").classList.toggle("hidden", view!=="room"); }
+function setStatus(t){ $("status").textContent=t||""; }
+function wsUrl(){ return (location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/ws/ensemble"; }
+
+async function connect(initMsg){
+  player=JamPlayer(); await player.start();
+  ws=new WebSocket(wsUrl()); ws.binaryType="arraybuffer";
+  ws.onopen=()=>ws.send(JSON.stringify(initMsg));
+  ws.onmessage=(e)=>{ if(typeof e.data!=="string"){ player.feed(e.data); return; } handle(JSON.parse(e.data)); };
+  ws.onclose=()=>setStatus("Disconnected.");
+}
+function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+
+function createRoom(){ const n=$("name").value.trim(); if(!n){ $("landErr").textContent="Enter your name first."; return; }
+  connect({action:"create", name:n}); }
+function joinRoom(){ const n=$("name").value.trim(); const c=$("codeIn").value.trim().toUpperCase();
+  if(!n){ $("landErr").textContent="Enter your name first."; return; }
+  if(c.length<4){ $("landErr").textContent="Enter the 4-letter code."; return; }
+  connect({action:"join", code:c, name:n}); }
+
+function handle(m){
+  if(m.type==="joined"){ me=m.name; isHost=m.host; seatInfo=m.seatInfo||{}; textures=m.textures||[];
+    show("room"); $("code").textContent=m.code;
+    $("shareLine").textContent="Players: open "+location.origin+"/ensemble on the same WiFi and enter "+m.code;
+    $("startBtn").classList.toggle("hidden", !isHost); }
+  else if(m.type==="room"){ renderSeats(m.seats, m.players); refreshMine(m.players); }
+  else if(m.type==="started"){ setStatus("The band is live."); $("saveBtn").classList.remove("hidden"); $("atBtn").classList.remove("hidden");
+    if(isHost) $("chalBtn").classList.remove("hidden"); }
+  else if(m.type==="state"){ renderNowPlaying(m); }
+  else if(m.type==="saved"){ $("feed").innerHTML=`${m.by} captured a take. Saved to the Library.`; setStatus(""); }
+  else if(m.type==="audiotool"){ $("feed").innerHTML=`Sent to Audiotool by ${m.by}. ${m.url?`<a href="${m.url}" target="_blank">Open project →</a>`:""}`; }
+  else if(m.type==="challenge"){ startChallenge(m); }
+  else if(m.type==="challenge_end"){ endChallenge(m); }
+  else if(m.type==="react"){ $("reactCount").textContent=m.count; }
+  else if(m.type==="error"){ setStatus(m.error); }
+}
+
+function startChallenge(m){
+  $("chalCard").classList.remove("hidden"); $("chalResult").classList.add("hidden");
+  $("chalBrief").textContent="“"+m.brief+"”"; $("chalBtn").disabled=true;
+  $("chalTimerWrap").classList.remove("hidden");
+  clearInterval(chalInt); const total=m.seconds*1000, t0=Date.now();
+  chalInt=setInterval(()=>{ const left=Math.max(0,total-(Date.now()-t0));
+    $("chalTimer").style.width=(100*left/total)+"%"; if(left<=0) clearInterval(chalInt); }, 100);
+  setStatus("Challenge on. Steer toward the brief together.");
+}
+function endChallenge(m){
+  clearInterval(chalInt); $("chalTimerWrap").classList.add("hidden"); $("chalBtn").disabled=false;
+  $("chalResult").classList.remove("hidden");
+  $("chalRecap").textContent = m.clip ? `Take captured for “${m.brief}”. React, or send it to Audiotool.` : `Challenge over. Capture a take to keep an idea.`;
+  $("reactCount").textContent = m.reactions||0;
+  setStatus("");
+}
+
+function renderSeats(seats, players){
+  const el=$("seats"); el.innerHTML="";
+  ["harmonist","texturist","atmosphere","drive"].forEach(s=>{
+    const owner=seats[s]; const info=seatInfo[s]||{label:s, drives:""};
+    const d=document.createElement("div");
+    d.className="seat "+s+(owner===me?" mine":"")+(owner&&owner!==me?" taken":"");
+    d.innerHTML=`<div class="nm">${info.label}</div><div class="dr">${info.drives}</div>`+
+      `<div class="who">${owner?(owner===me?"You":owner):'<span class="empty">open</span>'}</div>`;
+    if(!owner) d.onclick=()=>send({action:"seat", seat:s});
+    else if(owner===me) d.onclick=()=>send({action:"unseat"});
+    el.appendChild(d);
+  });
+}
+function refreshMine(players){
+  const mine=(players||[]).find(p=>p.name===me);
+  const seat=mine?mine.seat:null;
+  if(seat!==mySeat){ mySeat=seat; renderControls(); }
+}
+
+function renderNowPlaying(m){
+  $("npChord").textContent=m.chord?(m.chord+(m.key?` (${m.key})`:"")):"free";
+  $("npLead").textContent=clean(m.prompt_a)||"—";
+  $("npAtmos").textContent=m.prompt_b?`${clean(m.prompt_b)} · ${Math.round((m.blend||0)*100)}%`:"—";
+  $("npDrive").textContent=`density ${Math.round((m.density||0)*100)}% · drums ${m.drums?"on":"off"}`;
+}
+function clean(s){ return (s||"").replace(/,\s*instrumental\s*$/i,""); }
+
+// ── seat-specific control panels ──────────────────────────────────────────
+function renderControls(){
+  const c=$("controls");
+  if(!mySeat){ $("ctlLab").textContent="Your controls"; c.innerHTML='<div class="muted">Take a seat above to start driving the sound.</div>'; return; }
+  $("ctlLab").textContent="You are the "+(seatInfo[mySeat]?.label||mySeat);
+  if(mySeat==="harmonist") return renderHarmonist(c);
+  if(mySeat==="texturist") return renderTexture(c, "prompt_a", "Pick the lead sound and genre. Tap a texture or type your own.");
+  if(mySeat==="atmosphere") return renderAtmosphere(c);
+  if(mySeat==="drive") return renderDrive(c);
+}
+
+async function renderHarmonist(c){
+  c.innerHTML=`<div class="row" style="margin-bottom:12px">
+      <span class="muted">Key</span>
+      <select id="hRoot"></select>
+      <select id="hMode"><option value="major">Major</option><option value="minor">Minor</option></select>
+      <button id="h7" class="toggle">Add 7th</button>
+      <button id="hFree" class="ghost">Free play</button></div>
+    <div class="pads" id="hPads"></div>
+    <div class="muted" id="hHint" style="margin-top:10px">Green = home, blue = motion, red = pull. Tap a chord and the band plays it. The 7th dial adds color and pull.</div>`;
+  const roots=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  roots.forEach(n=>{ const o=document.createElement("option"); o.value=n; o.textContent=n; $("hRoot").appendChild(o); });
+  $("hRoot").value="C";
+  $("hRoot").onchange=loadHarmony; $("hMode").onchange=loadHarmony;
+  $("h7").classList.toggle("on", sev7);
+  $("h7").onclick=()=>{ sev7=!sev7; $("h7").classList.toggle("on",sev7); if(lastCh) sendChord(lastCh); refreshPadNames(); };
+  $("hFree").onclick=()=>{ send({action:"free"}); activeDeg=null; lastCh=null; paintPads(); };
+  await loadHarmony();
+}
+async function loadHarmony(){
+  const root=$("hRoot").value, mode=$("hMode").value;
+  keyData=await (await fetch(`/api/harmony?root=${encodeURIComponent(root)}&mode=${mode}`)).json();
+  send({action:"key", key:keyData.key_label});
+  const el=$("hPads"); el.innerHTML="";
+  keyData.chords.forEach(ch=>{ const d=document.createElement("div"); d.className="pad"; d.dataset.deg=ch.degree;
+    d.innerHTML=`<div class="rom">${ch.roman}</div><div class="nm2">${sev7?ch.seventh_name:ch.name}</div>`;
+    d.onclick=()=>sendChord(ch); el.appendChild(d); });
+  paintPads();
+}
+function sendChord(ch){
+  lastCh=ch; const q=sev7?ch.seventh:ch.quality, nm=sev7?ch.seventh_name:ch.name;
+  send({action:"chord", root:ch.root, quality:q}); activeDeg=ch.degree; paintPads();
+  $("hHint").textContent=`${nm} · ${ch.function} · ${ch.hint}`;
+}
+function refreshPadNames(){ if(!keyData) return;
+  document.querySelectorAll("#hPads .pad").forEach(p=>{ const ch=keyData.chords[+p.dataset.deg-1];
+    p.querySelector(".nm2").textContent = sev7?ch.seventh_name:ch.name; }); }
+function paintPads(){ document.querySelectorAll("#hPads .pad").forEach(p=>p.classList.toggle("active", +p.dataset.deg===activeDeg)); }
+
+function renderTexture(c, action, help){
+  c.innerHTML=`<div class="muted" style="margin-bottom:10px">${help}</div>
+    <div class="chips" id="tChips"></div>
+    <div class="row" style="margin-top:12px"><input id="tFree" type="text" placeholder="describe a sound..." style="flex:1" /><button id="tSet">Set</button></div>`;
+  const chips=$("tChips");
+  textures.forEach(t=>{ const b=document.createElement("div"); b.className="chip"; b.textContent=t;
+    b.onclick=()=>send({action, text:t}); chips.appendChild(b); });
+  $("tSet").onclick=()=>{ const v=$("tFree").value.trim(); if(v) send({action, text:v}); };
+  $("tFree").addEventListener("keydown",e=>{ if(e.key==="Enter"){ const v=$("tFree").value.trim(); if(v) send({action, text:v}); } });
+}
+function renderAtmosphere(c){
+  renderTexture(c, "prompt_b", "Layer a second texture on top, then dial how much of it blends in.");
+  const extra=document.createElement("div"); extra.className="row"; extra.style.marginTop="14px";
+  extra.innerHTML=`<span class="muted">Blend in</span><input id="aBlend" type="range" min="0" max="1" step="0.05" value="0.4" /><span class="muted" id="aBlendV">40%</span>`;
+  c.appendChild(extra);
+  $("aBlend").addEventListener("input",()=>{ $("aBlendV").textContent=Math.round($("aBlend").value*100)+"%"; });
+  $("aBlend").addEventListener("change",()=>send({action:"blend", value:parseFloat($("aBlend").value)}));
+}
+function renderDrive(c){
+  c.innerHTML=`<div class="row" style="gap:28px; align-items:flex-start">
+      <div class="knob"><span class="muted">Energy (density)</span>
+        <input id="dDen" type="range" min="0" max="1" step="0.05" value="0.4" /><span class="kv" id="dDenV">40%</span></div>
+      <div class="knob"><span class="muted">Chaos (temperature)</span>
+        <input id="dTemp" type="range" min="0.5" max="1.5" step="0.05" value="1.0" /><span class="kv" id="dTempV">1.00</span></div>
+      <div class="knob"><span class="muted">Focus (top-k)</span>
+        <input id="dTopk" type="range" min="8" max="64" step="4" value="32" /><span class="kv" id="dTopkV">32</span></div>
+      <div class="knob"><span class="muted">Drums</span><button id="dDrums" class="on">On</button></div>
+    </div>
+    <div class="muted" style="margin-top:12px">Density is how busy it gets. Chaos loosens the playing, Focus tightens it. Drums bring the groove in and out.</div>`;
+  $("dDen").addEventListener("input",()=>{ $("dDenV").textContent=Math.round($("dDen").value*100)+"%"; });
+  $("dDen").addEventListener("change",()=>send({action:"density", value:parseFloat($("dDen").value)}));
+  $("dTemp").addEventListener("input",()=>{ $("dTempV").textContent=parseFloat($("dTemp").value).toFixed(2); });
+  $("dTemp").addEventListener("change",()=>send({action:"chaos", value:parseFloat($("dTemp").value)}));
+  $("dTopk").addEventListener("input",()=>{ $("dTopkV").textContent=$("dTopk").value; });
+  $("dTopk").addEventListener("change",()=>send({action:"focus", value:parseInt($("dTopk").value,10)}));
+  $("dDrums").onclick=()=>{ const on=!$("dDrums").classList.contains("on"); $("dDrums").classList.toggle("on",on);
+    $("dDrums").textContent=on?"On":"Off"; send({action:"drums", on}); };
+}
+
+// ── wiring ────────────────────────────────────────────────────────────────
+$("createBtn").onclick=createRoom;
+$("joinBtn").onclick=joinRoom;
+$("codeIn").addEventListener("keydown",e=>{ if(e.key==="Enter") joinRoom(); });
+$("startBtn").onclick=()=>{ send({action:"start"}); setStatus("Starting the band..."); };
+$("chalBtn").onclick=()=>{ send({action:"challenge"}); };
+$("reactBtn").onclick=()=>send({action:"react"});
+$("saveBtn").onclick=()=>{ send({action:"save"}); setStatus("Capturing..."); };
+$("atBtn").onclick=()=>{ send({action:"audiotool"}); setStatus("Sending to Audiotool..."); };
+window.addEventListener("beforeunload",()=>{ try{ if(ws){ send({action:"stop"}); ws.close(); } }catch(e){} });
+</script>
+</body>
+</html>

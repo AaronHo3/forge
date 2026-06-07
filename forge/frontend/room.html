@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Broken Record - online room</title>
+<style>
+  :root { --bg:#0e0f13; --panel:#171922; --panel2:#1f2230; --ink:#e8eaf0; --muted:#9aa0b4;
+    --accent:#7c6cff; --accent2:#22d3a6; --line:#2a2e3e; --warn:#ffb454; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); min-height:100vh;
+    font:16px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  .top { padding:14px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:14px; }
+  .top h1 { margin:0; font-size:17px; } .top h1 span { color:var(--accent); }
+  .top a { color:var(--muted); text-decoration:none; font-size:13px; }
+  .stage { max-width:600px; margin:0 auto; padding:32px 20px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:24px; margin-bottom:16px; }
+  h2 { margin:0 0 6px; font-size:21px; } .sub { color:var(--muted); margin:0 0 18px; font-size:14px; }
+  label { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:14px 0 6px; }
+  input[type=text], textarea, select { width:100%; padding:12px 14px; background:var(--panel2);
+    color:var(--ink); border:1px solid var(--line); border-radius:10px; font-size:15px; outline:none; font-family:inherit; }
+  textarea { min-height:80px; resize:vertical; }
+  input:focus, textarea:focus, select:focus { border-color:var(--accent); }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  input[type=checkbox]{ width:18px; height:18px; accent-color:var(--accent); vertical-align:-3px; }
+  .row { display:flex; gap:12px; } .row > div { flex:1; }
+  .val { color:var(--accent2); }
+  button.primary { width:100%; margin-top:20px; padding:14px; border:0; border-radius:12px;
+    background:var(--accent); color:#fff; font-size:16px; font-weight:700; cursor:pointer; }
+  button.primary:disabled { opacity:.5; cursor:not-allowed; }
+  button.ghost { background:var(--panel2); color:var(--ink); border:1px solid var(--line); }
+  .code { font-size:40px; font-weight:800; letter-spacing:6px; color:var(--accent); text-align:center; margin:8px 0; }
+  .players { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+  .ptag { background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-size:14px; }
+  .ptag.host { border-color:var(--accent); color:#b9aeff; }
+  details.hints { margin-top:12px; }
+  details.hints summary { cursor:pointer; color:var(--accent2); font-size:13px; font-weight:600; }
+  .cat { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin:10px 0 5px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { background:var(--panel2); border:1px solid var(--line); color:var(--ink); border-radius:999px;
+    padding:5px 11px; font-size:12px; cursor:pointer; } .chip:hover { border-color:var(--accent); }
+  audio { width:100%; margin:8px 0; }
+  .center { text-align:center; }
+  .spinner { width:34px; height:34px; border:3px solid var(--line); border-top-color:var(--accent);
+    border-radius:50%; animation:spin .8s linear infinite; margin:22px auto; } @keyframes spin { to { transform:rotate(360deg); } }
+  .pill { display:inline-block; padding:4px 12px; border-radius:999px; background:var(--panel2);
+    border:1px solid var(--line); color:var(--muted); font-size:12px; }
+  .chain { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:14px; }
+  .chain h3 { margin:0 0 8px; font-size:15px; color:var(--accent2); }
+  .hop { border-left:2px solid var(--line); padding:6px 0 6px 12px; margin-left:4px; }
+  .hop b { font-size:14px; } .hop .t { font-size:14px; margin:2px 0; } .hop .tut { color:var(--muted); font-size:12px; font-style:italic; }
+  .badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; margin-left:6px; }
+  .badge.seed { background:rgba(124,108,255,.18); color:#b9aeff; } .badge.sc { background:rgba(34,211,166,.16); color:var(--accent2); }
+  .lead .lrow { display:flex; justify-content:space-between; padding:5px 0; } .lead .lrow.win { color:var(--accent2); font-weight:700; }
+  .err { color:var(--warn); font-size:13px; margin-top:10px; min-height:16px; }
+  .hide { display:none; }
+</style>
+<link rel="stylesheet" href="/app.css" />
+<script src="/wave.js" defer></script>
+</head>
+<body class="p-record">
+  <div class="top"><h1><span>📻</span> Broken Record <span style="color:var(--muted);font-weight:400">· online</span></h1>
+    <a href="/">← workbench</a></div>
+  <div class="stage">
+
+    <!-- ENTRY -->
+    <div id="s-entry" class="card">
+      <h2>Play online</h2>
+      <p class="sub">Everyone joins on their own phone and plays at the same time.</p>
+      <label>Your name</label>
+      <input id="name" type="text" placeholder="e.g. Sam" />
+      <div class="card" style="margin:18px 0 0;background:var(--panel2)">
+        <b>Create a room</b>
+        <div class="row" style="margin-top:8px">
+          <div><label>Clip length <span class="val" id="lenVal">3.2s</span></label>
+            <input id="chunks" type="range" min="2" max="10" step="1" value="4"></div>
+          <div><label>Key</label>
+            <select id="key"><option value="">free</option><option>A minor</option>
+            <option>C major</option><option>E minor</option><option>D minor</option><option>G major</option></select></div>
+        </div>
+        <div class="row" style="margin-top:0">
+          <div><label>Rounds</label>
+            <select id="turns"><option value="0">Auto</option>
+              <option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+          <div><label>Answer time</label>
+            <select id="timer"><option value="0">No limit</option><option value="10">10s</option>
+              <option value="15">15s</option><option value="30" selected>30s</option><option value="60">60s</option></select></div>
+        </div>
+        <label>Difficulty (how strictly guesses are judged)</label>
+        <select id="skill"><option value="advanced">Advanced - detailed prompts</option>
+          <option value="beginner">Beginner - genre / mood / tempo</option></select>
+        <button class="primary" id="createBtn">Create room</button>
+      </div>
+      <div class="card" style="margin:14px 0 0;background:var(--panel2)">
+        <b>Join a room</b>
+        <div class="row" style="margin-top:8px;align-items:flex-end">
+          <div><label>Code</label><input id="joinCode" type="text" placeholder="ABCD" maxlength="4" style="text-transform:uppercase"></div>
+          <div style="flex:0 0 auto"><button class="primary ghost" id="joinBtn" style="margin:0;width:auto;padding:12px 20px">Join</button></div>
+        </div>
+      </div>
+      <div class="err" id="entryErr"></div>
+    </div>
+
+    <!-- LOBBY -->
+    <div id="s-lobby" class="card hide center">
+      <p class="sub">Room code - others enter this to join</p>
+      <div class="code" id="lobbyCode">····</div>
+      <div class="players" id="lobbyPlayers" style="justify-content:center"></div>
+      <div id="hostStart" class="hide"><button class="primary" id="startBtn">Start game</button></div>
+      <p id="waitHost" class="sub hide" style="margin-top:18px">Waiting for the host to start…</p>
+      <div class="err" id="lobbyErr"></div>
+    </div>
+
+    <!-- SEED (turn 0: full workbench controls) -->
+    <div id="s-seed" class="card hide">
+      <h2>🎛 Compose your sound <span class="pill" id="seedTimer" style="float:right"></span></h2>
+      <p class="sub">You're starting a chain. Make something - others will hear it and guess your prompt.</p>
+      <label>Prompt</label>
+      <input id="seedA" type="text" placeholder="warm mellow lo-fi rhodes keys" />
+      <label>Second prompt <span style="text-transform:none">(optional - morph)</span></label>
+      <input id="seedB" type="text" placeholder="bright fingerpicked guitar" />
+      <details class="hints"><summary>💡 Need ideas? Tap to build a prompt</summary><div id="seedHints"></div></details>
+      <div class="row" style="margin-top:8px">
+        <div><label>Blend <span class="val" id="blendVal">0.4</span></label><input id="blend" type="range" min="0" max="1" step="0.05" value="0.4"></div>
+        <div><label>Density <span class="val" id="densVal">0.3</span></label><input id="density" type="range" min="0" max="1" step="0.05" value="0.3"></div>
+      </div>
+      <label style="display:inline-flex;align-items:center;gap:8px;text-transform:none;margin-top:14px">
+        <input id="drums" type="checkbox"> Drums</label>
+      <button class="primary" id="seedSubmit">Compose →</button>
+      <div class="err" id="seedErr"></div>
+    </div>
+
+    <!-- GUESS -->
+    <div id="s-guess" class="card hide">
+      <h2>👂 What made this sound? <span class="pill" id="guessTimer" style="float:right"></span></h2>
+      <p class="sub">Listen, then describe the prompt you think created it.</p>
+      <audio id="guessAudio" controls preload="auto"></audio>
+      <label>Your guess at the prompt</label>
+      <textarea id="guessText" placeholder="e.g. warm lo-fi piano, nostalgic"></textarea>
+      <details class="hints"><summary>💡 Idea chips</summary><div id="guessHints"></div></details>
+      <button class="primary" id="guessSubmit">Send guess →</button>
+      <div class="err" id="guessErr"></div>
+    </div>
+
+    <!-- WAITING -->
+    <div id="s-wait" class="card center hide">
+      <div class="spinner"></div>
+      <p class="sub" id="waitMsg">Waiting for the other players…</p>
+    </div>
+
+    <!-- REVEAL -->
+    <div id="s-reveal" class="hide">
+      <h2 style="text-align:center">🎬 How the sounds drifted</h2>
+      <div id="chains"></div>
+      <div class="card"><h2 style="font-size:18px;margin:0 0 10px">🏆 Leaderboard</h2>
+        <div class="lead" id="leaderboard"></div></div>
+      <button class="primary" id="againBtn">New game</button>
+    </div>
+
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const show = id => ["s-entry","s-lobby","s-seed","s-guess","s-wait","s-reveal"]
+  .forEach(s => $(s).classList.toggle("hide", s!==id));
+
+let ws=null, me=null, isHost=false, code=null, hintsData=null;
+
+$("chunks").oninput = e => $("lenVal").textContent = (e.target.value*0.8).toFixed(1)+"s";
+$("blend").oninput  = e => $("blendVal").textContent = (+e.target.value).toFixed(2);
+$("density").oninput= e => $("densVal").textContent  = (+e.target.value).toFixed(2);
+
+async function loadHints(targetId, getField) {
+  if (!hintsData) hintsData = await (await fetch("/api/hints")).json();
+  const box=$(targetId); box.innerHTML="";
+  for (const [cat,tags] of Object.entries(hintsData)) {
+    const c=document.createElement("div"); c.className="cat"; c.textContent=cat; box.appendChild(c);
+    const row=document.createElement("div"); row.className="chips";
+    tags.forEach(t=>{const s=document.createElement("span");s.className="chip";s.textContent=t;
+      s.onclick=()=>{const f=getField(); f.value = f.value.trim() ? f.value.replace(/,\s*$/,"")+", "+t : t; f.focus();};
+      row.appendChild(s);});
+    box.appendChild(row);
+  }
+}
+
+function connect(onOpen) {
+  const proto = location.protocol==="https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen = onOpen;
+  ws.onmessage = ev => handle(JSON.parse(ev.data));
+  ws.onclose = () => { if (!$("s-reveal").classList.contains("hide")) return;
+    $("entryErr").textContent = "Disconnected."; };
+}
+const send = obj => ws.send(JSON.stringify(obj));
+
+$("createBtn").onclick = () => {
+  me = $("name").value.trim(); if (!me) { $("entryErr").textContent="Enter a name first."; return; }
+  connect(() => send({action:"create", name:me, settings:{
+    chunks:+$("chunks").value, key:$("key").value||null,
+    turns:+$("turns").value, timer:+$("timer").value, skill:$("skill").value }}));
+};
+$("joinBtn").onclick = () => {
+  me = $("name").value.trim(); const c=$("joinCode").value.trim().toUpperCase();
+  if (!me) { $("entryErr").textContent="Enter a name first."; return; }
+  if (!c) { $("entryErr").textContent="Enter a room code."; return; }
+  connect(() => send({action:"join", code:c, name:me}));
+};
+$("startBtn").onclick = () => send({action:"start"});
+$("againBtn").onclick = () => location.reload();
+
+let curTurn=0, submittedTurn=false, countdown=null;
+
+function stopCountdown() { if (countdown) { clearInterval(countdown); countdown=null; } }
+function startCountdown(secs, pillId, onZero) {
+  stopCountdown();
+  const pill=$(pillId);
+  if (!secs) { pill.textContent=""; return; }
+  let left=secs; pill.textContent=`⏱ ${left}s`;
+  countdown=setInterval(() => {
+    left--; pill.textContent = left>=0 ? `⏱ ${left}s` : "";
+    if (left<=0) { stopCountdown(); onZero(); }
+  }, 1000);
+}
+
+function submitSeed(auto) {
+  if (submittedTurn) return;
+  let a=$("seedA").value.trim();
+  if (!a) { if (auto) a="warm felt piano"; else { $("seedErr").textContent="Write a prompt."; return; } }
+  submittedTurn=true; stopCountdown();
+  send({action:"submit", turn:curTurn, text:a, text_b:$("seedB").value.trim()||null,
+        blend:+$("blend").value, density:+$("density").value, drums:$("drums").checked});
+  $("waitMsg").textContent="Composing your sound…"; show("s-wait");
+}
+function submitGuess(auto) {
+  if (submittedTurn) return;
+  let t=$("guessText").value.trim();
+  if (!t) { if (auto) t="(no idea)"; else { $("guessErr").textContent="Write a guess."; return; } }
+  submittedTurn=true; stopCountdown();
+  send({action:"submit", turn:curTurn, text:t});
+  $("waitMsg").textContent="Sent! Waiting for the others…"; show("s-wait");
+}
+$("seedSubmit").onclick = () => submitSeed(false);
+$("guessSubmit").onclick = () => submitGuess(false);
+
+function renderLobby(m) {
+  $("lobbyCode").textContent = code;
+  const box=$("lobbyPlayers"); box.innerHTML="";
+  m.players.forEach(p=>{const s=document.createElement("span");
+    s.className="ptag"+(p===m.host?" host":""); s.textContent=p+(p===m.host?" ★":""); box.appendChild(s);});
+  $("hostStart").classList.toggle("hide", !isHost);
+  $("waitHost").classList.toggle("hide", isHost);
+  show("s-lobby");
+}
+
+function handle(m) {
+  switch (m.type) {
+    case "joined":
+      code=m.code; isHost=m.is_host; $("lobbyCode").textContent=code; show("s-lobby"); break;
+    case "lobby": renderLobby(m); break;
+    case "turn":
+      curTurn=m.turn; submittedTurn=false;
+      if (m.is_seed) {
+        $("seedA").value=""; $("seedB").value=""; loadHints("seedHints",()=>$("seedA"));
+        startCountdown(m.seconds, "seedTimer", () => submitSeed(true)); show("s-seed");
+      } else {
+        $("guessText").value=""; $("guessAudio").src=m.listen; loadHints("guessHints",()=>$("guessText"));
+        startCountdown(m.seconds, "guessTimer", () => submitGuess(true)); show("s-guess");
+      }
+      break;
+    case "progress":
+      if (!$("s-wait").classList.contains("hide"))
+        $("waitMsg").textContent = `Waiting for the others… (${m.done}/${m.total} in)`;
+      break;
+    case "reveal": renderReveal(m); break;
+    case "error":
+      [ "entryErr","lobbyErr","seedErr","guessErr" ].forEach(id=>$(id) && ($(id).textContent=m.message));
+      break;
+  }
+}
+
+function renderReveal(m) {
+  stopCountdown();
+  const box=$("chains"); box.innerHTML="";
+  m.chains.forEach(c=>{
+    const div=document.createElement("div"); div.className="chain";
+    let html=`<h3>From ${c.origin}${c.fidelity!=null?` · ${c.fidelity}% stayed on target`:""}</h3>`;
+    c.hops.forEach(h=>{
+      const badge = h.is_seed?`<span class="badge seed">SEED</span>`:`<span class="badge sc">+${h.score}</span>`;
+      html+=`<div class="hop"><b>${h.player}</b>${badge}<div class="t">"${h.text}"</div>
+        <audio controls preload="none" src="${h.clip_url}"></audio>
+        ${h.tutor?`<div class="tut">${h.tutor}</div>`:""}</div>`;
+    });
+    div.innerHTML=html; box.appendChild(div);
+  });
+  const lb=$("leaderboard"); lb.innerHTML="";
+  m.leaderboard.forEach((p,i)=>{const r=document.createElement("div");r.className="lrow"+(i===0?" win":"");
+    r.innerHTML=`<span>${i===0?"🏆 ":""}${p.player}</span><span>${p.score}</span>`;lb.appendChild(r);});
+  show("s-reveal");
+}
+
+show("s-entry");
+</script>
+</body>
+</html>

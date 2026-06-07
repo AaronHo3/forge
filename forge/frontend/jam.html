@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forge - Live Morph / Jam</title>
+<style>
+  :root{ --bg:#0e0f13; --panel:#171922; --panel2:#1f2230; --ink:#e8eaf0;
+         --muted:#9aa0b4; --accent:#f472b6; --line:#2a2e3e; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+        font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header{ padding:22px 28px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:20px; }
+  header h1{ margin:0; font-size:20px; } header h1 span{ color:var(--accent); }
+  header p{ margin:4px 0 0; color:var(--muted); font-size:13px; }
+  .wrap{ max-width:880px; margin:0 auto; padding:26px 24px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px 24px; margin-bottom:18px; }
+  label{ display:block; font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:16px 0 6px; }
+  input[type=text], select{ width:100%; padding:10px 12px; background:var(--panel2); color:var(--ink);
+        border:1px solid var(--line); border-radius:9px; font-size:14px; outline:none; }
+  input[type=text]:focus, select:focus{ border-color:var(--accent); }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  .row{ display:flex; gap:16px; } .row>div{ flex:1; }
+  .val{ color:var(--accent); font-variant-numeric:tabular-nums; }
+  button{ padding:12px 18px; border:0; border-radius:10px; cursor:pointer; font-size:14px; font-weight:700;
+          color:#2a0a1c; background:var(--accent); }
+  button.ghost{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .btns{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+  .morph{ margin:6px 0 2px; }
+  .morph .ends{ display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .status{ margin-top:14px; font-size:13px; color:var(--accent); min-height:18px; }
+  .hint{ color:var(--muted); font-size:12.5px; margin-top:8px; line-height:1.5; }
+  .check{ display:flex; align-items:center; gap:8px; margin-top:16px; }
+  .check input{ accent-color:var(--accent); width:18px; height:18px; }
+  .check label{ margin:0; text-transform:none; letter-spacing:0; font-size:14px; color:var(--ink); }
+  .live{ display:inline-block; width:9px; height:9px; border-radius:50%; background:#444; margin-right:7px; vertical-align:0; }
+  .live.on{ background:var(--accent); animation:pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+  .saved{ margin-top:12px; }
+  a.navlink{ text-decoration:none; color:var(--muted); font-weight:600; font-size:14px; border:1px solid var(--line);
+             border-radius:12px; padding:9px 14px; }
+</style>
+<link rel="stylesheet" href="/app.css" />
+<script src="/jam-client.js" defer></script>
+</head>
+<body class="p-jam">
+  <header>
+    <div style="flex:1">
+      <h1><span>◆</span> Live Morph <span style="color:var(--muted)">/ Jam</span></h1>
+      <p>MRT2 plays a continuous, evolving stream. Steer it live and morph between styles as it plays.</p>
+    </div>
+    <a class="navlink" href="/">← Workbench</a>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <div>
+          <label for="a">Prompt A</label>
+          <input id="a" type="text" value="dark cinematic strings, tense, slow" />
+        </div>
+        <div>
+          <label for="b">Prompt B <span style="text-transform:none">(morph target)</span></label>
+          <input id="b" type="text" value="warm bright piano jazz, uplifting" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="key">Key</label>
+          <select id="key">
+            <option value="">free</option>
+            <option>C major</option><option>A minor</option><option>G major</option>
+            <option>E minor</option><option>D minor</option><option>C minor</option>
+          </select>
+        </div>
+        <div>
+          <label>Density <span class="val" id="densVal">0.30</span></label>
+          <input id="density" type="range" min="0" max="1" step="0.01" value="0.3" />
+        </div>
+      </div>
+
+      <label>Morph - A ◄────► B <span class="val" id="blendVal">0.00</span></label>
+      <div class="morph">
+        <div class="ends"><span id="endA">A</span><span id="endB">B</span></div>
+        <input id="blend" type="range" min="0" max="1" step="0.01" value="0" />
+      </div>
+
+      <div class="check">
+        <input id="drums" type="checkbox" />
+        <label for="drums">Drums</label>
+      </div>
+
+      <div class="btns">
+        <button id="start">▶ Start jam</button>
+        <button id="apply" class="ghost" disabled>Apply prompts</button>
+        <button id="capture" class="ghost" disabled>● Capture take</button>
+        <button id="stop" class="ghost" disabled>■ Stop</button>
+      </div>
+      <div class="status" id="status"><span class="live" id="live"></span>Idle - press Start (first start loads MRT2, ~10s).</div>
+      <div class="hint">Move the <b>Morph</b> slider while it plays - you'll hear A blend into B in real time.
+        Edit the prompts and hit <b>Apply</b> to steer it somewhere new. <b>Capture</b> saves the recent audio
+        to your Library, where you can Restyle it or send it to Audiotool.</div>
+      <div class="saved" id="saved"></div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+let jam = null, ctrlTimer = null;
+
+function setLive(on, msg){
+  $("start").disabled = on;
+  $("apply").disabled = $("capture").disabled = $("stop").disabled = !on;
+  if (msg) $("status").innerHTML = `<span class="live ${on?'on':''}" id="live"></span>${msg}`;
+  else { const el = $("live"); if (el) el.classList.toggle("on", on); }
+}
+
+// live slider labels (and stream the change while playing)
+$("blend").oninput   = e => { $("blendVal").textContent = (+e.target.value).toFixed(2); sendControl(); };
+$("density").oninput = e => { $("densVal").textContent  = (+e.target.value).toFixed(2); sendControl(); };
+$("drums").onchange  = () => sendControl();
+$("a").oninput = () => { $("endA").textContent = $("a").value.slice(0,22) || "A"; };
+$("b").oninput = () => { $("endB").textContent = $("b").value.slice(0,22) || "B"; };
+$("endA").textContent = $("a").value.slice(0,22); $("endB").textContent = $("b").value.slice(0,22);
+
+function initMsg(){
+  return { prompt_a:$("a").value, prompt_b:$("b").value||null, key:$("key").value||null,
+           blend:+$("blend").value, density:+$("density").value, drums:$("drums").checked };
+}
+function handleJson(m){
+  if (m.type === "closed"){ setLive(false, "Stopped."); return; }
+  if (m.type === "saved" && m.clip){
+    setLive(true, "Live - steer it!");
+    const c = m.clip, box = document.createElement("div"); box.className = "card";
+    box.innerHTML = `<b>✓ Captured to your Library</b> - open the
+      <a class="navlink" href="/" style="padding:3px 8px">Workbench</a> to Restyle or send to Audiotool.
+      <audio controls preload="none" src="${c.url}"></audio>`;
+    $("saved").prepend(box);
+  } else if (m.type === "error"){
+    setLive(true, "⚠ " + m.error);
+  }
+}
+async function start(){
+  jam = JamClient();
+  setLive(true, "Connecting… (first start loads MRT2, ~10s)");
+  try { await jam.start(initMsg(), handleJson); setLive(true, "Live - steer it!"); }
+  catch(e){ setLive(false, "⚠ connection error"); }
+}
+function stop(){ if (jam) jam.stop(); setLive(false, "Stopped."); }
+function sendControl(){
+  if (!jam || !jam.playing) return;
+  clearTimeout(ctrlTimer);                       // throttle slider spam
+  ctrlTimer = setTimeout(() => jam.control({
+    blend:+$("blend").value, density:+$("density").value, drums:$("drums").checked
+  }), 60);
+}
+function applyPrompts(){
+  if (!jam || !jam.playing) return;
+  jam.prompt({prompt_a:$("a").value, prompt_b:$("b").value||"", key:$("key").value||""});
+  setLive(true, "Morphing toward the new prompts…");
+}
+function captureTake(){ if (jam && jam.playing){ jam.save(); setLive(true, "Capturing…"); } }
+
+$("start").onclick=start; $("stop").onclick=stop; $("apply").onclick=applyPrompts; $("capture").onclick=captureTake;
+window.addEventListener("beforeunload", () => { if (jam) jam.stop(); });
+</script>
+</body>
+</html>

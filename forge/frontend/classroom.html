@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forge - Live Music Classroom</title>
+<style>
+  :root{ --bg:#0e0f13; --panel:#171922; --panel2:#1f2230; --ink:#e8eaf0; --muted:#9aa0b4;
+         --accent:#fb7185; --line:#2a2e3e; --good:#34d399; --bad:#fb7185; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header{ padding:20px 26px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1{ margin:0; font-size:19px; } header h1 span{ color:var(--accent); }
+  header p{ margin:3px 0 0; color:var(--muted); font-size:13px; }
+  .wrap{ max-width:680px; margin:0 auto; padding:26px 22px; text-align:center; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:26px 24px; margin-bottom:16px; }
+  input[type=text]{ width:100%; padding:12px 14px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:10px; font-size:15px; outline:none; text-align:center; }
+  input[type=text]:focus{ border-color:var(--accent); }
+  .code-in{ text-transform:uppercase; letter-spacing:.3em; font-weight:700; }
+  button{ padding:13px 20px; border:0; border-radius:11px; cursor:pointer; font-size:15px; font-weight:700; color:#2c060e; background:var(--accent); }
+  button.ghost{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .row{ display:flex; gap:10px; } .row > *{ flex:1; }
+  .lab{ font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:14px 0 6px; text-align:left; }
+  .hidden{ display:none; }
+  .bigcode{ font:800 52px/1 'JetBrains Mono',ui-monospace,monospace; letter-spacing:.18em; color:var(--accent); margin:6px 0 4px; }
+  .joinurl{ color:var(--muted); font-size:13px; word-break:break-all; }
+  .players{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:14px; }
+  .pchip{ background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-size:14px; }
+  .q{ font-size:23px; font-weight:800; min-height:30px; margin:8px 0 4px; letter-spacing:-.01em; }
+  .sub{ color:var(--muted); font-size:13px; min-height:18px; margin-bottom:18px; }
+  .opts{ display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+  .opts.one{ grid-template-columns:1fr; }
+  .opt{ padding:18px 16px; border-radius:12px; border:1px solid var(--line); background:var(--panel2); color:var(--ink); font-size:16px; font-weight:600; cursor:pointer; transition:transform .08s, border-color .12s; }
+  .opt:hover:not(:disabled){ border-color:var(--accent); transform:translateY(-1px); } .opt:disabled{ cursor:default; }
+  .opt.correct{ border-color:var(--good); background:color-mix(in srgb, var(--good) 18%, var(--panel2)); }
+  .opt.wrong{ border-color:var(--bad); background:color-mix(in srgb, var(--bad) 18%, var(--panel2)); opacity:.85; }
+  .opt.mine{ outline:2px solid var(--accent); outline-offset:1px; }
+  .timer{ height:8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:14px 0; }
+  .timer > div{ height:100%; width:100%; background:var(--accent); transition:width .2s linear; }
+  .explain{ margin-top:14px; color:var(--muted); font-size:14px; min-height:20px; }
+  .reveal-prompt{ margin-top:6px; font-size:13px; color:var(--ink); background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:9px 12px; display:none; font-family:'JetBrains Mono',ui-monospace,monospace; }
+  .board{ text-align:left; margin-top:14px; }
+  .brow{ display:flex; align-items:center; gap:10px; padding:10px 13px; border:1px solid var(--line); border-radius:10px; margin-bottom:7px; background:var(--panel2); transition:transform .25s; }
+  .brow .rk{ width:22px; text-align:center; font-weight:800; color:var(--muted); }
+  .brow .nm{ flex:1; font-weight:600; }
+  .brow .s{ font-family:'JetBrains Mono',monospace; color:var(--accent); font-weight:700; }
+  .brow .fl{ font-size:12px; color:#fbbf24; }
+  .brow.me{ border-color:var(--accent); }
+  .status{ color:var(--accent); font-size:14px; min-height:20px; margin-top:8px; }
+  a.navlink{ text-decoration:none; color:var(--muted); font-weight:600; font-size:14px; border:1px solid var(--line); border-radius:12px; padding:9px 14px; }
+  /* concept chip per round */
+  .concept{ display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
+            padding:6px 13px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); }
+  .concept .dot{ width:8px; height:8px; border-radius:50%; background:var(--accent); }
+  .concept.detective .dot{ background:#a78bfa; } .concept.detective{ color:#c4b5fd; }
+  .concept.genre .dot{ background:#34d399; } .concept.genre{ color:#6ee7b7; }
+  .concept.changed .dot{ background:#fbbf24; } .concept.changed{ color:#fcd34d; }
+  /* round progress dots */
+  .dots{ display:flex; gap:6px; justify-content:center; margin:14px 0 2px; }
+  .dots i{ width:7px; height:7px; border-radius:50%; background:var(--panel2); border:1px solid var(--line); }
+  .dots i.done{ background:var(--accent); border-color:var(--accent); }
+  .dots i.now{ background:var(--ink); border-color:var(--ink); }
+  /* listening equalizer */
+  .eq{ display:flex; gap:5px; justify-content:center; align-items:flex-end; height:46px; margin:10px 0 4px; }
+  .eq span{ width:7px; background:var(--accent); border-radius:3px; animation:bounce 0.9s ease-in-out infinite; }
+  .eq span:nth-child(2){ animation-delay:.12s } .eq span:nth-child(3){ animation-delay:.24s }
+  .eq span:nth-child(4){ animation-delay:.36s } .eq span:nth-child(5){ animation-delay:.48s }
+  @keyframes bounce{ 0%,100%{ height:12px } 50%{ height:42px } }
+  /* points pop */
+  .pop{ position:fixed; left:50%; top:38%; transform:translate(-50%,0); font:800 40px/1 ui-sans-serif,system-ui;
+        color:var(--good); pointer-events:none; opacity:0; }
+  .pop.show{ animation:popUp 1.3s ease-out forwards; }
+  .pop.miss{ color:var(--muted); font-size:26px; }
+  @keyframes popUp{ 0%{ opacity:0; transform:translate(-50%,18px) scale(.8) } 20%{ opacity:1; transform:translate(-50%,0) scale(1.05) }
+                    80%{ opacity:1 } 100%{ opacity:0; transform:translate(-50%,-34px) scale(1) } }
+</style>
+<link rel="stylesheet" href="/app.css" />
+<script src="/jam-client.js" defer></script>
+</head>
+<body class="p-showdown">
+  <header>
+    <div style="flex:1">
+      <h1><span>◆</span> Live Music Classroom</h1>
+      <p>Everyone hears the same live AI stream. Name the prompt, catch the change, call the genre. Learn music and prompting by ear, together.</p>
+    </div>
+    <a class="navlink" href="/">← Workbench</a>
+  </header>
+
+  <div class="wrap">
+    <!-- LANDING -->
+    <div id="landing" class="card">
+      <div class="lab">Your name</div>
+      <input id="name" type="text" placeholder="your name" maxlength="24" />
+      <div class="row" style="margin-top:18px">
+        <button id="createBtn">Host a class</button>
+      </div>
+      <div class="lab" style="margin-top:22px">Or join one</div>
+      <div class="row">
+        <input id="codeIn" class="code-in" type="text" placeholder="CODE" maxlength="4" />
+        <button id="joinBtn" class="ghost">Join</button>
+      </div>
+      <div class="status" id="landErr"></div>
+    </div>
+
+    <!-- LOBBY -->
+    <div id="lobby" class="card hidden">
+      <div class="lab" style="text-align:center">Room code</div>
+      <div class="bigcode" id="lobbyCode">----</div>
+      <div class="joinurl" id="joinUrl"></div>
+      <div class="players" id="players"></div>
+      <div style="margin-top:22px">
+        <button id="startBtn" class="hidden">Start class</button>
+        <div class="status" id="lobbyStatus">Waiting for the host to start...</div>
+      </div>
+    </div>
+
+    <!-- PLAY -->
+    <div id="play" class="card hidden">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px">
+        <span class="concept hidden" id="concept"><span class="dot"></span><span id="conceptText"></span></span>
+        <span class="sub" id="roundNo" style="margin:0; min-height:0"></span>
+      </div>
+      <div class="dots" id="dots"></div>
+      <div class="q" id="q">Get ready...</div>
+      <div class="sub" id="sub"></div>
+      <div class="eq hidden" id="eq"><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="timer hidden" id="timerWrap"><div id="timerBar"></div></div>
+      <div class="opts" id="opts"></div>
+      <div class="explain" id="explain"></div>
+      <div class="reveal-prompt" id="revealPrompt"></div>
+      <div class="board hidden" id="board"></div>
+      <div class="status" id="playStatus"></div>
+    </div>
+  </div>
+  <div class="pop" id="pop"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ws = null, player = null, me = "", isHost = false, answered = false, timerInt = null;
+
+function show(view){ ["landing","lobby","play"].forEach(v => $(v).classList.toggle("hidden", v !== view)); }
+function wsUrl(){ return (location.protocol==="https:"?"wss":"ws") + "://" + location.host + "/ws/classroom"; }
+
+async function connect(initMsg){
+  player = JamPlayer();
+  await player.start();                         // AudioContext needs this user gesture
+  ws = new WebSocket(wsUrl());
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => ws.send(JSON.stringify(initMsg));
+  ws.onmessage = (e) => {
+    if (typeof e.data !== "string") { player.feed(e.data); return; }
+    handle(JSON.parse(e.data));
+  };
+  ws.onclose = () => { $("playStatus").textContent = "Disconnected."; };
+}
+
+function createClass(){
+  const name = $("name").value.trim(); if (!name){ $("landErr").textContent="Enter your name first."; return; }
+  connect({ action:"create", name });
+}
+function joinClass(){
+  const name = $("name").value.trim(); const code = $("codeIn").value.trim().toUpperCase();
+  if (!name){ $("landErr").textContent="Enter your name first."; return; }
+  if (code.length<4){ $("landErr").textContent="Enter the 4-letter code."; return; }
+  connect({ action:"join", code, name });
+}
+
+const CONCEPT_ICON = { detective:"🕵️", genre:"🎼", changed:"🎚️" };
+let totalRounds = 8;
+
+function handle(m){
+  if (m.type === "joined"){
+    me = m.name; isHost = m.host; show("lobby");
+    $("startBtn").classList.toggle("hidden", !isHost);
+    $("joinUrl").textContent = "Players: open " + location.origin + "/classroom on the same WiFi";
+  }
+  else if (m.type === "lobby"){
+    $("lobbyCode").textContent = m.code;
+    $("players").innerHTML = m.players.map(p => `<span class="pchip">${p===m.host?"★ ":""}${p}</span>`).join("");
+  }
+  else if (m.type === "started"){ show("play"); setConcept(null); $("dots").innerHTML=""; $("q").textContent="Get ready..."; $("sub").textContent="the live stream is warming up"; }
+  else if (m.type === "listen"){ listen(m); }
+  else if (m.type === "round"){ startRound(m); }
+  else if (m.type === "reveal"){ reveal(m); }
+  else if (m.type === "result"){ showResult(m); }
+  else if (m.type === "final"){ finalBoard(m); }
+}
+
+function setConcept(m){
+  const el=$("concept");
+  if (!m){ el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  el.className = "concept " + (m.kind||"");
+  $("conceptText").textContent = (CONCEPT_ICON[m.kind]||"") + " " + m.concept;
+}
+function renderDots(round, total){
+  totalRounds = total;
+  let h=""; for(let i=1;i<=total;i++){ h += `<i class="${i<round?'done':(i===round?'now':'')}"></i>`; }
+  $("dots").innerHTML=h;
+}
+function resetRound(){
+  answered=false; clearInterval(timerInt);
+  $("opts").innerHTML=""; $("explain").textContent=""; $("board").classList.add("hidden");
+  $("revealPrompt").style.display="none"; $("timerWrap").classList.add("hidden"); $("playStatus").textContent="";
+}
+function listen(m){
+  resetRound(); setConcept(m); renderDots(m.round, m.total);
+  $("roundNo").textContent=`Round ${m.round} / ${m.total}`;
+  $("q").textContent="Listen closely"; $("sub").textContent="getting the sound in your ear...";
+  $("eq").classList.remove("hidden");
+}
+function startRound(m){
+  answered=false; clearInterval(timerInt);
+  $("explain").textContent=""; $("revealPrompt").style.display="none"; $("board").classList.add("hidden");
+  $("eq").classList.add("hidden");
+  setConcept(m); renderDots(m.round, m.total);
+  $("roundNo").textContent=`Round ${m.round} / ${m.total}`;
+  $("q").textContent=m.question; $("sub").textContent=m.sub;
+  const grid=$("opts"); grid.innerHTML=""; grid.classList.toggle("one", m.options.length<=2 || m.options.length===3);
+  m.options.forEach((o,i)=>{ const b=document.createElement("button"); b.className="opt"; b.textContent=o;
+    b.onclick=()=>pick(i,b); grid.appendChild(b); });
+  $("playStatus").textContent="";
+  // countdown
+  $("timerWrap").classList.remove("hidden");
+  const total=m.seconds*1000; const t0=Date.now();
+  timerInt=setInterval(()=>{ const left=Math.max(0,total-(Date.now()-t0));
+    $("timerBar").style.width=(100*left/total)+"%"; if(left<=0) clearInterval(timerInt); }, 100);
+}
+function pick(i, btn){
+  if (answered) return; answered=true;
+  ws.send(JSON.stringify({action:"answer", choice:i}));
+  document.querySelectorAll(".opt").forEach(b=>b.disabled=true);
+  btn.classList.add("mine");
+  $("playStatus").textContent="Locked in. Waiting for everyone...";
+}
+function reveal(m){
+  clearInterval(timerInt); $("timerWrap").classList.add("hidden"); $("eq").classList.add("hidden");
+  const opts=document.querySelectorAll(".opt");
+  opts.forEach((b,idx)=>{ b.disabled=true;
+    if(idx===m.correct) b.classList.add("correct");
+    else if(b.classList.contains("mine")) b.classList.add("wrong"); });
+  let line = m.explain || "";
+  if (typeof m.got==="number") line += `   ${m.got} of ${m.players} caught it.`;
+  $("explain").textContent=line;
+  if (m.reveal){ $("revealPrompt").style.display="block"; $("revealPrompt").textContent=m.reveal; }
+  renderBoard(m.scores); $("playStatus").textContent="";
+}
+function showResult(m){
+  const pop=$("pop"); pop.classList.remove("show","miss");
+  if (m.correct){
+    let t = "+" + m.gained;
+    pop.textContent = m.streak>=2 ? `${t}  ${"🔥".repeat(Math.min(m.streak,5))}` : t;
+  } else { pop.textContent = "—"; pop.classList.add("miss"); }
+  void pop.offsetWidth; pop.classList.add("show");
+}
+function medal(i){ return ["🥇","🥈","🥉"][i] || (i+1); }
+function renderBoard(scores){
+  $("board").classList.remove("hidden");
+  $("board").innerHTML = scores.map((s,i)=>
+    `<div class="brow ${s.name===me?'me':''}">`+
+      `<span class="rk">${medal(i)}</span>`+
+      `<span class="nm">${s.name}</span>`+
+      `${s.streak>=2?`<span class="fl">${"🔥".repeat(Math.min(s.streak,5))}</span>`:""}`+
+      `<span class="s">${s.score}</span>`+
+    `</div>`).join("");
+}
+function finalBoard(m){
+  show("play"); resetRound(); setConcept(null); $("dots").innerHTML=""; $("eq").classList.add("hidden");
+  $("roundNo").textContent="Final results";
+  const won = m.scores.length && m.scores[0].name===me;
+  $("q").textContent = won ? "🏆 You topped the class!" : "Class dismissed!";
+  $("sub").textContent = won ? "" : (m.scores.length?`${m.scores[0].name} took the crown`:"");
+  renderBoard(m.scores);
+}
+
+$("createBtn").onclick = createClass;
+$("joinBtn").onclick = joinClass;
+$("startBtn").onclick = ()=>{ ws.send(JSON.stringify({action:"start"})); $("lobbyStatus").textContent="Starting..."; };
+$("codeIn").addEventListener("keydown", e=>{ if(e.key==="Enter") joinClass(); });
+window.addEventListener("beforeunload", ()=>{ try{ if(ws) ws.close(); }catch(e){} });
+</script>
+</body>
+</html>

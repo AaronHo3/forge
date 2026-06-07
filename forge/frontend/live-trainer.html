@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forge - Living Ear-Trainer</title>
+<style>
+  :root{ --bg:#0e0f13; --panel:#171922; --panel2:#1f2230; --ink:#e8eaf0;
+         --muted:#9aa0b4; --accent:#38bdf8; --line:#2a2e3e; --good:#34d399; --bad:#fb7185; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+        font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header{ padding:22px 28px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:20px; }
+  header h1{ margin:0; font-size:20px; } header h1 span{ color:var(--accent); }
+  header p{ margin:4px 0 0; color:var(--muted); font-size:13px; }
+  .wrap{ max-width:680px; margin:0 auto; padding:26px 24px; text-align:center; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:30px 26px; }
+  .scorebar{ display:flex; justify-content:space-between; color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .scorebar b{ color:var(--accent); font-variant-numeric:tabular-nums; }
+  .q{ font-size:22px; font-weight:800; min-height:30px; margin:10px 0 6px; letter-spacing:-.01em; }
+  .sub{ color:var(--muted); font-size:13px; min-height:18px; margin-bottom:22px; }
+  .opts{ display:grid; gap:12px; }
+  .opt{ padding:16px; border-radius:12px; border:1px solid var(--line); background:var(--panel2);
+        color:var(--ink); font-size:16px; font-weight:600; cursor:pointer; transition:border-color .12s, background .12s; }
+  .opt:hover:not(:disabled){ border-color:var(--accent); }
+  .opt:disabled{ cursor:default; }
+  .opt.correct{ border-color:var(--good); background:color-mix(in srgb, var(--good) 16%, var(--panel2)); color:#bbf7e3; }
+  .opt.wrong{ border-color:var(--bad); background:color-mix(in srgb, var(--bad) 16%, var(--panel2)); color:#fecdd6; }
+  .explain{ margin-top:18px; color:var(--muted); font-size:14px; min-height:20px; line-height:1.5; }
+  .btns{ display:flex; gap:10px; justify-content:center; margin-top:22px; flex-wrap:wrap; }
+  button.act{ padding:13px 22px; border:0; border-radius:11px; cursor:pointer; font-size:15px; font-weight:700;
+        color:#03202e; background:var(--accent); }
+  button.ghost{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .live{ display:inline-block; width:9px; height:9px; border-radius:50%; background:#444; margin-right:7px; }
+  .live.on{ background:var(--accent); animation:pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+  .toggle{ display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; margin-top:6px; }
+  .toggle button{ padding:7px 14px; background:var(--panel2); color:var(--muted); border:0; border-right:1px solid var(--line); font-size:13px; font-weight:600; cursor:pointer; }
+  .toggle button:last-child{ border-right:0; } .toggle button.on{ background:var(--accent); color:#03202e; }
+  a.navlink{ text-decoration:none; color:var(--muted); font-weight:600; font-size:14px; border:1px solid var(--line); border-radius:12px; padding:9px 14px; }
+</style>
+<link rel="stylesheet" href="/app.css" />
+<script src="/jam-client.js" defer></script>
+</head>
+<body class="p-train">
+  <header>
+    <div style="flex:1">
+      <h1><span>◆</span> Living Ear-Trainer</h1>
+      <p>The music never stops - one quality changes at a time. Catch what moved. (Powered by MRT2's live stream.)</p>
+    </div>
+    <a class="navlink" href="/train">Classic Trainer</a>
+    <a class="navlink" href="/">← Workbench</a>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="scorebar">
+        <span><span class="live" id="live"></span><span id="state">Press Start</span></span>
+        <span>Score <b id="score">0</b> / <b id="total">0</b> · streak <b id="streak">0</b></span>
+      </div>
+
+      <div class="q" id="q">Train your ears on a living mix</div>
+      <div class="sub" id="sub">A continuous AI stream will shift one thing - density, drums, brightness, or genre - and ask what changed.</div>
+      <div class="opts" id="opts"></div>
+      <div class="explain" id="explain"></div>
+
+      <div class="btns">
+        <button class="act" id="start">▶ Start listening</button>
+        <button class="ghost" id="next" style="display:none">Next →</button>
+        <button class="ghost" id="stop" style="display:none">■ Stop</button>
+      </div>
+      <div style="margin-top:16px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">Difficulty</div>
+        <div class="toggle" id="diff">
+          <button data-d="easy" class="on">Obvious</button>
+          <button data-d="hard">Subtle</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+let jam = null, running = false, difficulty = "easy", cur = null, answered = false;
+let score = 0, total = 0, streak = 0, roundToken = 0;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ── Challenge bank - each returns {q, sub, setup?, before, after, options, correct, explain} ──
+const PAIRS = [["jazz piano trio","electronic synth pads"],["acoustic folk guitar","orchestral strings"],
+               ["lo-fi hip hop","driving techno"],["gentle flute","distorted electric guitar"]];
+function deltas(){ return difficulty === "easy"
+  ? { dLo:0.12, dHi:0.85, warm:"warm mellow analog keys, soft and dark", bright:"bright crisp shimmering bells, airy and sparkly" }
+  : { dLo:0.32, dHi:0.62, warm:"warm rhodes keys", bright:"slightly brighter electric piano" }; }
+
+const CHALLENGES = [
+  () => { const D=deltas(), up=Math.random()<.5;                      // density
+    return { q:"What just changed?", sub:"density / busyness",
+      before:{density: up?D.dLo:D.dHi}, after:{density: up?D.dHi:D.dLo},
+      options:["Busier - more going on","Calmer - more space"], correct: up?0:1,
+      explain: up?"Density rose: more notes & layers per moment.":"Density fell: sparser, more breathing room." }; },
+  () => { const add=Math.random()<.5;                                 // drums
+    return { q:"What just changed?", sub:"rhythm section",
+      before:{drums:!add}, after:{drums:add},
+      options:["Drums came in","Drums dropped out"], correct: add?0:1,
+      explain: add?"A drum/percussion layer entered.":"The drums dropped out." }; },
+  () => { const D=deltas(), bright=Math.random()<.5;                  // brightness (timbre)
+    return { q:"What just changed?", sub:"tone / brightness",
+      before:{prompt_a: bright?D.warm:D.bright}, after:{prompt_a: bright?D.bright:D.warm},
+      options:["Brighter - more highs","Warmer / darker"], correct: bright?0:1,
+      explain: bright?"Spectral brightness rose - more high-frequency energy.":"It warmed up - fewer highs, more low-mids." }; },
+  () => { const p=PAIRS[Math.floor(Math.random()*PAIRS.length)], toB=Math.random()<.5;   // genre/instrument morph
+    return { q:"Which did it morph toward?", sub:"genre / instrumentation",
+      setup:{prompt_a:p[0], prompt_b:p[1]},
+      before:{blend: toB?0:1}, after:{blend: toB?1:0},
+      options:[cap(p[0]), cap(p[1])], correct: toB?1:0,
+      explain:`It morphed toward "${toB?p[1]:p[0]}".` }; },
+];
+
+function instr(s){ s=(s||"").trim(); return /instrumental/i.test(s) ? s : s + ", instrumental"; }
+function apply(p){
+  if (!p || !jam) return;
+  const pr={}, ct={};
+  for (const k of ["prompt_a","prompt_b","key"]) if (k in p) pr[k]=p[k];
+  if (pr.prompt_a) pr.prompt_a = instr(pr.prompt_a);
+  if (pr.prompt_b) pr.prompt_b = instr(pr.prompt_b);
+  for (const k of ["blend","density","drums"]) if (k in p) ct[k]=p[k];
+  if (Object.keys(pr).length) jam.prompt(pr);
+  if (Object.keys(ct).length) jam.control(ct);
+}
+function setState(on, msg){
+  const el=$("live"); if (el) el.classList.toggle("on", on);
+  if (msg) $("state").textContent = msg;
+}
+function showOptions(opts, onPick){
+  const box=$("opts"); box.innerHTML="";
+  opts.forEach((o,i)=>{ const b=document.createElement("button"); b.className="opt"; b.textContent=o;
+    b.onclick=()=>onPick(i,b); box.appendChild(b); });
+}
+
+async function nextRound(){
+  answered=false; cur=CHALLENGES[Math.floor(Math.random()*CHALLENGES.length)]();
+  const token=++roundToken;
+  $("next").style.display="none"; $("explain").textContent=""; $("opts").innerHTML="";
+  $("q").textContent="🎧 Listen…"; $("sub").textContent="establishing the baseline";
+  apply(cur.setup); apply(cur.before);
+  await sleep(difficulty==="easy"?4500:5500);
+  if (!running || token!==roundToken) return;
+  apply(cur.after);                                  // the change happens live
+  $("q").textContent="…what changed?"; $("sub").textContent=cur.sub;
+  await sleep(1600);
+  if (!running || token!==roundToken) return;
+  $("q").textContent=cur.q;
+  showOptions(cur.options, onPick);
+}
+function onPick(i, btn){
+  if (answered) return; answered=true;
+  total++;
+  const ok = i===cur.correct;
+  if (ok){ score++; streak++; } else { streak=0; }
+  document.querySelectorAll(".opt").forEach((b,idx)=>{ b.disabled=true;
+    if (idx===cur.correct) b.classList.add("correct");
+    else if (idx===i) b.classList.add("wrong"); });
+  $("explain").textContent = (ok?"✓ Correct - ":"✗ Not quite - ") + cur.explain;
+  $("score").textContent=score; $("total").textContent=total; $("streak").textContent=streak;
+  $("next").style.display="";
+}
+
+async function start(){
+  jam = JamClient(); running=true; let firstStarted=false;
+  $("start").style.display="none"; $("stop").style.display="";
+  setState(true,"Loading MRT2 (~10s)…");
+  try {
+    await jam.start({ prompt_a:instr("warm neutral electric piano, steady groove"), blend:0, density:0.4, drums:false },
+      (m)=>{
+        if (m.type==="closed"){ running=false; setState(false,"Stopped."); }
+        // wait for REAL audio before the first quiz (avoids quizzing during warmup silence)
+        else if (m.type==="playing" && !firstStarted){ firstStarted=true; setState(true,"Live"); nextRound(); }
+      });
+  } catch(e){ running=false; setState(false,"⚠ connection error"); $("start").style.display=""; $("stop").style.display="none"; return; }
+  setState(true,"Warming up, listen for the first sound…");
+}
+function stop(){ running=false; roundToken++; if (jam) jam.stop();
+  setState(false,"Stopped."); $("start").style.display=""; $("stop").style.display="none"; $("next").style.display="none"; }
+
+$("start").onclick=start; $("stop").onclick=stop;
+$("next").onclick=()=>{ if (running) nextRound(); };
+document.querySelectorAll("#diff button").forEach(b=>b.onclick=()=>{
+  difficulty=b.dataset.d;
+  document.querySelectorAll("#diff button").forEach(x=>x.classList.toggle("on", x===b));
+});
+window.addEventListener("beforeunload", ()=>{ if (jam) jam.stop(); });
+</script>
+</body>
+</html>

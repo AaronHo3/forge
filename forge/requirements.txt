@@ -1,0 +1,18 @@
+# Forge — dependencies
+
+# MRT2 itself (Python/MLX library mode). The hackathon team may provide a wheel.
+# magenta-rt
+
+# Audio / numerics (shared with the fallback project)
+numpy>=1.24.0
+scipy>=1.11.0
+
+# AI judge
+anthropic>=0.40.0
+
+# Web server — the one justified new dep vs the fallback's stdlib server,
+# because party modes need WebSockets. Not needed until Phase 2 (Telephone);
+# the Phase-1 Forge workbench is REST-only and could run on either.
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+websockets>=12          # WebSocket transport for networked rooms (Phase 2b)

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forge · Chord Coach</title>
+<style>
+  :root{ --bg:#0e1018; --panel:#181b27; --panel2:#222636; --ink:#eef1f8; --muted:#9aa3bd;
+         --accent:#60a5fa; --good:#34d399; --warn:#fbbf24; --bad:#fb7185; --line:#2c3142;
+         --white:#f3f5fb; --black:#1a1d28; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+        background-image:radial-gradient(900px 460px at 50% -10%, #1c2a4d 0%, var(--bg) 60%); min-height:100vh; }
+  header{ padding:18px 24px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:14px; }
+  header h1{ margin:0; font-size:20px; } header h1 span{ color:var(--accent); }
+  header p{ margin:3px 0 0; color:var(--muted); font-size:13px; }
+  a.back{ text-decoration:none; color:var(--muted); font-weight:600; font-size:14px; border:1px solid var(--line); border-radius:10px; padding:9px 13px; }
+  .wrap{ max-width:880px; margin:0 auto; padding:22px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 22px; margin-bottom:16px; }
+  .lab{ font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 8px; }
+  .target{ font-size:34px; font-weight:800; letter-spacing:-.01em; }
+  .desc{ color:var(--muted); margin-top:4px; }
+  .keys-hint{ margin-top:12px; font-size:15px; }
+  .keys-hint .k{ display:inline-block; min-width:30px; text-align:center; font-weight:800; font-family:ui-monospace,monospace;
+    background:var(--panel2); border:1px solid var(--line); border-bottom:3px solid var(--line); border-radius:8px; padding:5px 8px; margin:0 3px; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  button{ padding:11px 16px; border:0; border-radius:11px; cursor:pointer; font-size:15px; font-weight:700; color:#06121f; background:var(--accent); }
+  button.ghost{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); }
+  button:active{ transform:translateY(1px); }
+  /* piano */
+  .piano{ position:relative; height:180px; margin:10px 0 4px; user-select:none; display:flex; }
+  .wk{ position:relative; flex:1; background:var(--white); border:1px solid #c4c9d6; border-radius:0 0 7px 7px; margin:0 1px;
+       display:flex; align-items:flex-end; justify-content:center; padding-bottom:10px; color:#2a2f3d; font-weight:800; font-family:ui-monospace,monospace; cursor:pointer; }
+  .wk.on{ background:color-mix(in srgb, var(--good) 45%, var(--white)); }
+  .wk.target{ box-shadow:inset 0 0 0 3px var(--accent); }
+  .bk{ position:absolute; top:0; width:8%; height:62%; background:var(--black); border:1px solid #000; border-radius:0 0 6px 6px; z-index:2;
+       display:flex; align-items:flex-end; justify-content:center; padding-bottom:8px; color:#cfd6e6; font-weight:800; font-size:13px; font-family:ui-monospace,monospace; cursor:pointer; }
+  .bk.on{ background:color-mix(in srgb, var(--good) 55%, var(--black)); color:#06121f; }
+  .bk.target{ box-shadow:inset 0 0 0 3px var(--accent); }
+  .held{ margin-top:10px; font-size:15px; color:var(--muted); min-height:24px; }
+  .held b{ color:var(--ink); }
+  .fb{ margin-top:12px; padding:12px 14px; border-radius:10px; min-height:24px; font-size:15px; }
+  .fb.ok{ background:color-mix(in srgb,var(--good) 16%,var(--panel2)); border:1px solid var(--good); }
+  .fb.tip{ background:var(--panel2); border:1px solid var(--line); color:var(--muted); }
+  .stats{ display:flex; gap:22px; } .stats .n{ font-weight:800; color:var(--accent); font-size:22px; }
+  .stats .l{ font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  button.on{ background:var(--good); color:#04231a; }
+  .bandnote{ color:var(--muted); font-size:13px; margin-top:8px; min-height:18px; }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg></span> Chord Coach</h1>
+      <p>Your computer keyboard is a piano. Build the chord on screen, hear it, and get graded, then have MRT2 play it back with a band.</p>
+    </div>
+    <a class="back" href="/">← Forge</a>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="lab">Play this chord</div>
+      <div class="target" id="target">—</div>
+      <div class="desc" id="desc"></div>
+      <div class="keys-hint" id="keysHint"></div>
+      <div class="row" style="margin-top:14px">
+        <button id="hearBtn" class="ghost">🔊 Hear the target</button>
+        <button id="playBtn" class="ghost">▶ Play my chord</button>
+        <button id="clearBtn" class="ghost">Clear</button>
+        <button id="skipBtn" class="ghost">Skip / show answer</button>
+        <button id="bandBtn">Hear it with a band ♪</button>
+      </div>
+      <div class="bandnote" id="bandNote"></div>
+    </div>
+
+    <div class="card">
+      <div class="piano" id="piano"></div>
+      <div class="held" id="held">Tap keys (or click the piano) to add notes to your chord.</div>
+      <div class="fb tip" id="fb">Tip: a chord is 3+ notes played together. Match the highlighted keys.</div>
+    </div>
+
+    <div class="card stats">
+      <div><div class="n" id="score">0</div><div class="l">Chords nailed</div></div>
+      <div><div class="n" id="streak">0</div><div class="l">Streak</div></div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const NOTE=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+// computer keyboard -> (pitch class, octave offset). One octave + high C.
+const KEYMAP = { a:[0,0], w:[1,0], s:[2,0], e:[3,0], d:[4,0], f:[5,0], t:[6,0], g:[7,0], y:[8,0], h:[9,0], u:[10,0], j:[11,0] };
+const PC_KEY = {}; for(const k in KEYMAP){ const pc=KEYMAP[k][0]; if(!(pc in PC_KEY)) PC_KEY[pc]=k; }  // first key per pitch class
+const QUAL = { maj:[0,4,7], min:[0,3,7], maj7:[0,4,7,11], "7":[0,4,7,10], min7:[0,3,7,10] };
+const QNAME = { maj:"major", min:"minor", maj7:"major 7th", "7":"dominant 7th", min7:"minor 7th" };
+const ROLE = {0:"the root",2:"the second",3:"the minor third (the sad note)",4:"the major third (the happy note)",
+  5:"the fourth",6:"the tritone",7:"the fifth",9:"the sixth",10:"the flat seventh",11:"the major seventh"};
+const DESC = { maj:"Bright and happy.", min:"Soft and sad.", maj7:"Dreamy and jazzy.",
+  "7":"Tense — it wants to resolve home.", min7:"Mellow and smooth." };
+
+function pc(name){ const m={C:0,D:2,E:4,F:5,G:7,A:9,B:11}; let p=m[name[0]]; if(name[1]==="#")p++; if(name[1]==="b")p--; return (p+12)%12; }
+const BANK = [["C","maj"],["A","min"],["G","maj"],["F","maj"],["D","min"],["E","min"],
+              ["C","maj7"],["G","7"],["D","maj"],["A","min7"]].map(([r,q])=>{
+  const root=pc(r); const pcs=QUAL[q].map(iv=>(root+iv)%12);
+  return { name:r+" "+QNAME[q], short:r+(q==="min"||q==="min7"?"m":"")+(q==="maj7"?"maj7":q==="7"?"7":q==="min7"?"7":""),
+           root, q, pcs:new Set(pcs), keys:pcs.map(p=>PC_KEY[p]) }; });
+
+let cur=0, on=new Set(), score=0, streak=0, solved=false;
+let ac=null; function ctx(){ if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==="suspended")ac.resume(); return ac; }
+function freq(pc,oct){ return 261.63*Math.pow(2,(pc+12*oct)/12); }  // C4 base
+function pluck(pc,oct=0,dur=0.9,when=0){ const c=ctx(),t=c.currentTime+when; const o=c.createOscillator(),g=c.createGain(),f=c.createBiquadFilter();
+  o.type="triangle"; o.frequency.value=freq(pc,oct); f.type="lowpass"; f.frequency.value=2200;
+  g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(.22,t+.01); g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(f); f.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+.05); }
+
+function curChord(){ return BANK[cur]; }
+function setChord(i){ cur=((i%BANK.length)+BANK.length)%BANK.length; on.clear(); solved=false;
+  const ch=curChord();
+  $("target").textContent=ch.name.toUpperCase();
+  $("desc").textContent=DESC[ch.q]+" Notes: "+[...ch.pcs].map(p=>NOTE[p]).join(" · ");
+  $("keysHint").innerHTML="Press: "+ch.keys.map(k=>`<span class="k">${k.toUpperCase()}</span>`).join("");
+  $("fb").className="fb tip"; $("fb").textContent="Build the chord by pressing the highlighted keys.";
+  renderPiano(); updateHeld(); }
+
+function renderPiano(){
+  const p=$("piano"); p.innerHTML="";
+  const whites=[["a",0,"C"],["s",2,"D"],["d",4,"E"],["f",5,"F"],["g",7,"G"],["h",9,"A"],["j",11,"B"]];
+  const blacks={0:["w",1,"C#"],1:["e",3,"D#"],3:["t",6,"F#"],4:["y",8,"G#"],5:["u",10,"A#"]}; // index after which white a black sits
+  const tgt=curChord().pcs;
+  whites.forEach((wk,i)=>{ const [key,pcv,nm]=wk; const d=document.createElement("div"); d.className="wk"+(on.has(pcv)?" on":"")+(tgt.has(pcv)?" target":"");
+    d.innerHTML=`${nm}<br><small style="opacity:.6">${key.toUpperCase()}</small>`; d.onclick=()=>toggle(pcv); p.appendChild(d);
+    if(blacks[i]){ const [bk,bpc,bnm]=blacks[i]; const b=document.createElement("div"); b.className="bk"+(on.has(bpc)?" on":"")+(tgt.has(bpc)?" target":"");
+      b.style.left=`calc(${(i+1)/whites.length*100}% - 4%)`; b.innerHTML=`${bk.toUpperCase()}`; b.title=bnm; b.onclick=(e)=>{ e.stopPropagation(); toggle(bpc); }; p.appendChild(b); } });
+}
+function toggle(pcv){ if(on.has(pcv)) on.delete(pcv); else { on.add(pcv); pluck(pcv); } renderPiano(); updateHeld(); grade(); }
+function updateHeld(){ $("held").innerHTML = on.size ? "You're holding: <b>"+[...on].map(p=>NOTE[p]).join(", ")+"</b>" : "Tap keys (or click the piano) to add notes."; }
+
+function grade(){
+  if(solved) return; const ch=curChord(); const tgt=ch.pcs;
+  if(on.size===0) return;
+  const missing=[...tgt].filter(p=>!on.has(p)); const extra=[...on].filter(p=>!tgt.has(p));
+  if(missing.length===0 && extra.length===0){ solved=true; score++; streak++; $("score").textContent=score; $("streak").textContent=streak;
+    const names=[...tgt].map(p=>`${NOTE[p]} (${ROLE[(p-ch.root+12)%12]||"a color note"})`);
+    $("fb").className="fb ok"; $("fb").innerHTML=`✓ <b>${ch.name}!</b> ${DESC[ch.q]} It's ${names.join(", ")}. <button class="ghost" id="nextBtn" style="margin-left:8px;padding:6px 12px;font-size:13px">Next chord →</button>`;
+    $("nextBtn").onclick=()=>setChord(cur+1); playChordSet(); return; }
+  // partial feedback (no penalty)
+  let msg="";
+  if(extra.length) msg+="Remove "+extra.map(p=>`${NOTE[p]} (${ROLE[(p-ch.root+12)%12]||"not in this chord"})`).join(", ")+". ";
+  if(missing.length) msg+="Add "+missing.map(p=>`${NOTE[p]} — ${ROLE[(p-ch.root+12)%12]||"a color note"}`).join(", ")+".";
+  $("fb").className="fb tip"; $("fb").textContent=msg;
+}
+function playChordSet(){ const arr=[...(on.size?on:curChord().pcs)]; arr.forEach(p=>pluck(p, p<curChord().root?1:0, 1.4)); }
+function hearTarget(){ const ch=curChord(); [...ch.pcs].forEach((p,i)=>pluck(p, p<ch.root?1:0, 1.6, i*0.18)); }
+
+// ── reactive MRT2 band: render a short, gentle accompaniment of the chord you played ──
+let bandAudio=null;
+async function hearBand(){
+  const ch=curChord(); $("bandBtn").disabled=true;
+  $("bandNote").textContent="MRT2 is arranging "+ch.name+" with a band... (the first one loads the model, ~a few seconds)";
+  try{
+    const r=await (await fetch("/api/chord-band",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({root:ch.root, quality:ch.q})})).json();
+    if(!r.ok){ $("bandNote").textContent="Could not generate the band."; $("bandBtn").disabled=false; return; }
+    if(bandAudio) bandAudio.pause();
+    bandAudio=new Audio(r.clip_url); bandAudio.play();
+    $("bandNote").textContent="🎵 MRT2 playing "+ch.name+" with a band — the chord you just built, with instruments.";
+  }catch(e){ $("bandNote").textContent="Error: "+e.message; }
+  $("bandBtn").disabled=false;
+}
+function stopBand(){ if(bandAudio){ try{ bandAudio.pause(); }catch(e){} } }
+
+// keyboard input
+window.addEventListener("keydown", e=>{ if(e.repeat) return; const k=e.key.toLowerCase(); if(k in KEYMAP){ e.preventDefault(); toggle(KEYMAP[k][0]); } });
+$("bandBtn").onclick=hearBand;
+$("hearBtn").onclick=hearTarget;
+$("playBtn").onclick=playChordSet;
+$("clearBtn").onclick=()=>{ on.clear(); solved=false; renderPiano(); updateHeld(); $("fb").className="fb tip"; $("fb").textContent="Cleared. Build the chord again."; };
+$("skipBtn").onclick=()=>{ streak=0; $("streak").textContent=0; const ch=curChord(); on=new Set(ch.pcs); renderPiano(); updateHeld();
+  $("fb").className="fb tip"; $("fb").innerHTML=`This is <b>${ch.name}</b>: ${[...ch.pcs].map(p=>NOTE[p]).join(", ")}. <button class="ghost" id="nextBtn" style="margin-left:8px;padding:6px 12px;font-size:13px">Next →</button>`;
+  hearTarget(); $("nextBtn").onclick=()=>setChord(cur+1); };
+window.addEventListener("beforeunload", ()=>{ try{ stopBand(); }catch(e){} });
+setChord(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "forge-audiotool-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Node sidecar: sends Forge clips into Audiotool projects via the Nexus SDK. Called by Forge's Python backend over localhost HTTP.",
+  "main": "server.mjs",
+  "scripts": { "start": "node server.mjs" },
+  "dependencies": { "@audiotool/nexus": "^0.0.17" }
+}

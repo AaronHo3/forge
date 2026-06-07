@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Forge</title>
+<style>
+  :root {
+    --bg:#0e0f13; --panel:#171922; --panel2:#1f2230; --ink:#e8eaf0;
+    --muted:#9aa0b4; --accent:#ff7a18; --accent2:#ffc24d; --line:#2a2e3e;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  header { padding:22px 28px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:20px; letter-spacing:.5px; }
+  header h1 span { color:var(--accent); }
+  header p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+  .wrap { display:grid; grid-template-columns:380px 1fr; gap:0; min-height:calc(100vh - 72px); }
+  .panel { padding:22px 24px; }
+  .panel.controls { background:var(--panel); border-right:1px solid var(--line); }
+  label { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.6px;
+          color:var(--muted); margin:16px 0 6px; }
+  input[type=text], select {
+    width:100%; padding:10px 12px; background:var(--panel2); color:var(--ink);
+    border:1px solid var(--line); border-radius:9px; font-size:14px; outline:none;
+  }
+  input[type=text]:focus, select:focus { border-color:var(--accent); }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  .row { display:flex; gap:12px; align-items:center; }
+  .row > div { flex:1; }
+  .val { color:var(--accent2); font-variant-numeric:tabular-nums; }
+  .check { display:flex; align-items:center; gap:8px; margin-top:18px; }
+  .check input { accent-color:var(--accent); width:18px; height:18px; }
+  .check label { margin:0; text-transform:none; letter-spacing:0; font-size:14px; color:var(--ink); }
+  .btns { display:flex; gap:10px; margin-top:24px; }
+  button {
+    flex:1; padding:12px 14px; border:0; border-radius:10px; cursor:pointer;
+    font-size:14px; font-weight:600; color:#fff; background:var(--accent);
+    transition:transform .05s, opacity .2s;
+  }
+  button.ghost { background:var(--panel2); color:var(--ink); border:1px solid var(--line); }
+  button:active { transform:translateY(1px); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .hint { color:var(--muted); font-size:12px; margin-top:10px; }
+  details.hints { margin-top:16px; }
+  details.hints summary { cursor:pointer; color:var(--accent2); font-size:13px; font-weight:600; }
+  .hints .cat { font-size:11px; text-transform:uppercase; letter-spacing:.5px;
+    color:var(--muted); margin:12px 0 5px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { background:var(--panel2); border:1px solid var(--line); color:var(--ink);
+    border-radius:999px; padding:5px 11px; font-size:12px; cursor:pointer; }
+  .chip:hover { border-color:var(--accent); }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted);
+       margin:0 0 14px; }
+  .clip {
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:14px 16px; margin-bottom:12px;
+  }
+  .clip .meta { font-size:13px; color:var(--muted); margin-bottom:10px; }
+  .clip .meta b { color:var(--ink); font-weight:600; }
+  .clip .foot { display:flex; align-items:center; gap:10px; margin-top:10px; }
+  audio { width:100%; height:36px; }
+  .keep { flex:0 0 auto; padding:8px 14px; background:var(--accent2); color:#06231b; }
+  .keep.kept { background:var(--panel2); color:var(--muted); }
+  a.dl { flex:0 0 auto; padding:8px 14px; border-radius:10px; font-size:14px;
+         font-weight:600; text-decoration:none; background:var(--panel2);
+         color:var(--ink); border:1px solid var(--line); }
+  a.dl:hover { border-color:var(--accent); }
+  .status { margin-top:16px; font-size:13px; color:var(--accent2); min-height:18px; }
+  .spinner { display:inline-block; width:13px; height:13px; border:2px solid var(--line);
+    border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite;
+    vertical-align:-2px; margin-right:7px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .empty { color:var(--muted); font-size:13px; }
+  .mini { flex:0 0 auto; padding:8px 12px; background:var(--panel2); color:var(--ink);
+          border:1px solid var(--line); font-size:13px; font-weight:600; }
+  .mini:hover { border-color:var(--accent); }
+  .atbtn { display:none; }                 /* shown only when Audiotool is connected */
+  body.at-on .atbtn { display:inline-block; }
+  .atbar { display:none; margin-bottom:16px; padding:10px 14px; border-radius:10px;
+           background:var(--panel2); border:1px solid var(--line); font-size:13px; color:var(--muted); }
+  .atbar a { color:var(--accent); font-weight:700; text-decoration:none; }
+  .atbar a:hover { text-decoration:underline; }
+  .atbar .badge { color:var(--accent2); font-weight:700; }
+  .atbar .row2 { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .atbar .atlink { flex:1; min-width:200px; padding:8px 10px; background:var(--panel);
+                   border:1px solid var(--line); border-radius:8px; color:var(--ink); font-size:13px; }
+  .atmatch { display:none; }                /* tempo-match toggle: only when connected */
+  body.at-connected .atmatch { display:flex; }
+  /* engine picker (segmented MRT2 ⇄ SA3) */
+  .seg { display:flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .segbtn { flex:1; padding:9px 10px; background:var(--panel2); color:var(--muted);
+            border:0; border-right:1px solid var(--line); font-size:13px; font-weight:600;
+            cursor:pointer; line-height:1.2; }
+  .segbtn:last-child { border-right:0; }
+  .segbtn small { display:block; font-size:10px; font-weight:500; opacity:.75; text-transform:none; }
+  .segbtn.on { background:var(--accent); color:var(--accent-ink); }
+  /* per-clip engine badge */
+  .ebadge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.04em;
+            padding:2px 6px; border-radius:5px; border:1px solid var(--line);
+            background:var(--panel2); color:var(--muted); margin-right:7px; }
+  .ebadge.eng-sa3  { color:#ffc24d; border-color:#5a4423; }
+  .ebadge.eng-mrt2 { color:#ff9a3a; border-color:#5a3318; }
+  .rsform { margin-top:12px; padding:12px 13px; background:var(--panel2);
+            border:1px solid var(--line); border-radius:10px; display:none; }
+  .rsform.open { display:block; }
+  .rsform .lab { font-size:11px; text-transform:uppercase; letter-spacing:.5px;
+                 color:var(--muted); margin:10px 0 4px; }
+  .rsform .lab:first-child { margin-top:0; }
+  .rsform input[type=text]{ background:var(--panel); }
+  .rsform .go { width:100%; margin-top:12px; }
+  .rsstatus { font-size:12px; color:var(--accent2); min-height:16px; margin-top:7px; }
+  .rstips, .rshint { font-size:11.5px; color:var(--muted); line-height:1.45; margin:6px 0 0; }
+  .rstips b { color:var(--ink); font-weight:600; }
+  .rschips { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 2px; }
+  /* tucked-away teaching: ⓘ icon → popover with plain + model-terms explanation */
+  .info {
+    position:relative; display:inline-grid; place-items:center; width:15px; height:15px;
+    margin-left:5px; border-radius:50%; border:1px solid var(--line); background:var(--panel2);
+    color:var(--muted); font:700 10px/1 ui-sans-serif,system-ui; cursor:help;
+    vertical-align:middle; text-transform:none; letter-spacing:0; user-select:none;
+  }
+  .info:hover, .info:focus-visible { color:var(--accent); border-color:var(--accent); outline:none; }
+  .pop {
+    position:absolute; z-index:60; left:50%; transform:translateX(-50%); top:150%;
+    width:250px; padding:10px 12px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:10px; box-shadow:0 14px 34px rgba(0,0,0,.55); display:none;
+    font:400 12px/1.5 ui-sans-serif,system-ui; color:var(--ink);
+    text-transform:none; letter-spacing:0; white-space:normal; text-align:left;
+  }
+  .info:hover .pop, .info:focus .pop, .info:focus-within .pop, .pop.open { display:block; }
+  .pop .pt { display:block; font-weight:700; color:var(--ink); margin-bottom:4px; }
+  .pop .pm { display:block; margin-top:6px; color:var(--muted); }
+  .pop .pm b { color:var(--accent2); font-weight:600; }
+  .col2 { display:grid; grid-template-columns:1fr 1fr; gap:28px; align-items:start; }
+  @media (max-width:1000px){ .wrap{grid-template-columns:1fr;} .col2{grid-template-columns:1fr;} }
+
+  /* ─────────────  FORGE THEME (molten iron + embers)  ───────────── */
+  body.p-forge{ --bg:#120d0a; --panel:#1d1611; --panel2:#271d16; --ink:#f4e8db; --muted:#b3a08e;
+    --accent:#ff7a18; --accent2:#ffc24d; --line:#3b2c22; --accent-ink:#1c0c00; }
+  body.p-forge{ background:
+    radial-gradient(1100px 520px at 50% 122%, rgba(255,120,24,.26), transparent 62%),
+    radial-gradient(800px 420px at 50% -12%, rgba(255,90,20,.10), transparent 60%), #120d0a; }
+  body.p-forge header{ border-bottom:2px solid #3b2c22; background:linear-gradient(#1c130d,#140e0a);
+    box-shadow:0 2px 0 rgba(255,140,40,.16); }
+  body.p-forge header h1{ color:var(--accent2); font-weight:800; letter-spacing:1px;
+    text-shadow:0 0 20px rgba(255,122,24,.55); }
+  body.p-forge header h1 span{ color:var(--accent); text-shadow:0 0 16px rgba(255,90,10,.8); }
+  body.p-forge .panel.controls{ background:linear-gradient(#1d1611,#181109);
+    border-right:2px solid #3b2c22; box-shadow:inset -14px 0 30px rgba(0,0,0,.35); }
+  body.p-forge h2{ color:var(--accent2); letter-spacing:1.2px; }
+  body.p-forge #gen{ background:linear-gradient(#ff9a3a,#ff5e0f); color:#1c0c00; font-weight:800;
+    box-shadow:0 0 20px rgba(255,110,20,.55), 0 6px 0 #7a2e00; }
+  body.p-forge #gen:hover{ filter:brightness(1.08); }
+  body.p-forge #gen:active{ transform:translateY(2px); box-shadow:0 0 14px rgba(255,110,20,.5), 0 3px 0 #7a2e00; }
+  body.p-forge .keep{ background:var(--accent2); color:#1c0c00; }
+  body.p-forge .navlink{ background:#241b14; border:1px solid #3b2c22; color:var(--ink); border-radius:9px;
+    padding:9px 13px; text-decoration:none; font-weight:600; font-size:14px; transition:.15s; }
+  body.p-forge .navlink:hover{ border-color:var(--accent); color:var(--accent2);
+    box-shadow:0 0 14px rgba(255,122,24,.35); transform:translateY(-1px); }
+  body.p-forge .navlink svg{ vertical-align:-3px; margin-right:6px; }
+  body.p-forge .clip{ box-shadow:0 0 0 1px rgba(255,122,24,.04); }
+  body.p-forge .clip:hover{ border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  /* rising embers */
+  .embers{ position:fixed; inset:0; pointer-events:none; z-index:1; overflow:hidden; }
+  .embers i{ position:absolute; bottom:-12px; width:4px; height:4px; border-radius:50%;
+    background:#ff9a3a; box-shadow:0 0 8px 1px #ff7a18; opacity:0; animation:ember linear infinite; }
+  @keyframes ember{ 0%{ transform:translateY(0); opacity:0 } 12%{ opacity:.95 } 88%{ opacity:.6 }
+    100%{ transform:translateY(-106vh); opacity:0 } }
+  body.p-forge header, body.p-forge .wrap{ position:relative; z-index:2; }
+</style>
+<link rel="stylesheet" href="/app.css" />
+<script src="/wave.js" defer></script>
+</head>
+<body class="p-forge">
+  <div class="embers" id="embers"></div>
+  <header style="display:flex;align-items:center;gap:20px">
+    <div style="flex:1">
+      <h1><span><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="vertical-align:-4px"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg></span> THE FORGE</h1>
+      <p>Hammer raw prompts into sound. Audition, refine, and keep what rings true.</p>
+    </div>
+    <div class="navrow">
+      <a class="navlink" href="/prompt-party"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H8l-4 4z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="12" x2="13" y2="12"/></svg> Prompt Party</a>
+      <a class="navlink" href="/prompt-detective"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="21" y1="21" x2="15.5" y2="15.5"/></svg> Prompt Detective</a>
+      <a class="navlink" href="/daily"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="9" y1="3" x2="9" y2="7"/><line x1="15" y1="3" x2="15" y2="7"/></svg> Daily Challenge</a>
+      <a class="navlink" href="/chord-coach"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg> Chord Coach</a>
+      <a class="navlink" href="/looper-room"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4"/><circle cx="15" cy="16" r="2.4"/></svg> Looper</a>
+      <a class="navlink" href="/journey"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-12 4 8 5-6"/><circle cx="4" cy="18" r="1.4"/><circle cx="18" cy="8" r="1.4"/></svg> Journey</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- CONTROLS -->
+    <div class="panel controls">
+      <label>Engine <span class="info" tabindex="0" role="button" data-help="engine" aria-label="About the engine">i</span></label>
+      <div class="seg" id="engineSeg">
+        <button type="button" class="segbtn on" data-eng="sa3">SA3<small>fast · clips</small></button>
+        <button type="button" class="segbtn" data-eng="mrt2">MRT2<small>real-time · morph</small></button>
+      </div>
+
+      <label for="a">Prompt A <span class="info" tabindex="0" role="button" data-help="a" aria-label="About Prompt A">i</span></label>
+      <input id="a" type="text" placeholder="warm mellow lo-fi rhodes keys" />
+
+      <label for="b">Prompt B <span style="text-transform:none">(optional - enables morph)</span> <span class="info" tabindex="0" role="button" data-help="b" aria-label="About Prompt B">i</span></label>
+      <input id="b" type="text" placeholder="bright fingerpicked acoustic guitar" />
+
+      <details class="hints"><summary>💡 Need ideas? Tap to build a prompt</summary>
+        <div id="hintBox"></div>
+      </details>
+
+      <label>Blend A ↔ B <span class="val" id="blendVal">0.40</span> <span class="info" tabindex="0" role="button" data-help="blend" aria-label="About Blend">i</span></label>
+      <input id="blend" type="range" min="0" max="1" step="0.01" value="0.4" />
+      <div class="hint" id="morphNote" style="display:none">↳ A true A↔B morph only works on <b>MRT2</b> - switch the Engine to MRT2 to hear the blend (on SA3 the two prompts are just merged as text).</div>
+
+      <div class="row">
+        <div>
+          <label for="key">Key <span class="info" tabindex="0" role="button" data-help="key" aria-label="About Key">i</span></label>
+          <select id="key">
+            <option value="">free</option>
+            <option>C major</option><option>A minor</option><option>G major</option>
+            <option>E minor</option><option>D major</option><option>B minor</option>
+            <option>F major</option><option>D minor</option><option>Bb major</option>
+            <option>C minor</option>
+          </select>
+        </div>
+        <div>
+          <label>Density <span class="val" id="densVal">0.30</span> <span class="info" tabindex="0" role="button" data-help="density" aria-label="About Density">i</span></label>
+          <input id="density" type="range" min="0" max="1" step="0.01" value="0.3" />
+        </div>
+      </div>
+
+      <label>Length <span class="val" id="lenVal">6.4s</span> <span class="info" tabindex="0" role="button" data-help="length" aria-label="About Length">i</span></label>
+      <input id="chunks" type="range" min="2" max="20" step="1" value="8" />
+
+      <div class="check">
+        <input id="drums" type="checkbox" />
+        <label for="drums">Drums</label>
+        <span class="info" tabindex="0" role="button" data-help="drums" aria-label="About Drums">i</span>
+      </div>
+
+      <div class="check atmatch">
+        <input id="matchTempo" type="checkbox" checked />
+        <label for="matchTempo">🎚 Match Audiotool tempo <span class="val" id="matchBpm"></span></label>
+      </div>
+
+      <div class="btns">
+        <button id="gen">Generate</button>
+        <button id="vary" class="ghost" title="4 takes from sparse to dense">Density sweep ×4</button>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="hint">First generation loads the model (one-time, slower). Each
+        clip then takes a few seconds - runs locally.
+        <span class="info" tabindex="0" role="button" data-help="vary" aria-label="About variations">i</span></div>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="panel">
+      <div id="atbar" class="atbar"></div>
+      <div class="col2">
+        <div>
+          <h2>🔨 Off the anvil</h2>
+          <div id="takes"><div class="empty">Nothing yet - write a prompt and hit Generate.</div></div>
+        </div>
+        <div>
+          <h2>🗝 The vault</h2>
+          <div id="crate"><div class="empty">Saved sounds appear here.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const kept = new Set();
+
+// live slider labels
+$("blend").oninput  = e => $("blendVal").textContent = (+e.target.value).toFixed(2);
+$("density").oninput= e => $("densVal").textContent  = (+e.target.value).toFixed(2);
+$("chunks").oninput = e => $("lenVal").textContent   = (e.target.value*0.8).toFixed(1)+"s";
+
+// Engine picker. Default SA3 (fast). The picker is authoritative - your choice is
+// always honored. A↔B morph only works on MRT2, so we just *hint* (not override).
+let engine = "sa3";
+function bFilled() { return ($("b").value || "").trim().length > 0; }
+function engineForGen() { return engine; }
+function updateMorphNote() {
+  const note = $("morphNote");
+  if (note) note.style.display = (bFilled() && engine === "sa3") ? "block" : "none";
+}
+
+function matchOn() {
+  return atProject && atTempo && $("matchTempo") && $("matchTempo").checked;
+}
+function spec() {
+  let textA = $("a").value || $("a").placeholder;
+  if (matchOn()) textA += `, ${atTempo} BPM`;   // bias toward the project tempo
+  return {
+    text_a: textA,
+    engine: engineForGen(),
+    text_b: $("b").value || null,
+    blend:  +$("blend").value,
+    key:    $("key").value || null,
+    density:+$("density").value,
+    drums:  $("drums").checked,
+    chunks: +$("chunks").value,
+  };
+}
+
+function setBusy(on, msg) {
+  $("gen").disabled = $("vary").disabled = on;
+  $("status").innerHTML = on ? `<span class="spinner"></span>${msg||"Generating…"}` : (msg||"");
+}
+
+function clipCard(clip, {keepable=true, removable=false}={}) {
+  const s = clip.spec;
+  const div = document.createElement("div");
+  div.className = "clip";
+  const defaultTitle = s.text_a + (s.text_b ? ` ↔ ${s.text_b} @ ${s.blend.toFixed(2)}` : "");
+  const tags = [s.key||"free", `density ${s.density.toFixed(2)}`, s.drums?"drums":"no drums",
+                `${(s.chunks*0.8).toFixed(1)}s`].join(" · ");
+  const eng = (clip.engine||"").toLowerCase();
+  const badge = eng ? `<span class="ebadge eng-${eng}">${eng.toUpperCase()}</span>` : "";
+  div.innerHTML = `
+    <div class="meta">
+      <div class="titlerow"></div>
+      <span>${badge}${tags}</span>
+    </div>
+    <audio controls preload="none" src="${clip.url}"></audio>
+    <div class="foot"></div>`;
+  const titlerow = div.querySelector(".titlerow");
+  const foot = div.querySelector(".foot");
+
+  // Download (WAV) - filename follows the clip's name (or its prompt).
+  const dl = document.createElement("a");
+  dl.className = "dl"; dl.href = clip.url; dl.textContent = "⬇ WAV";
+  function refreshDownload() {
+    const base = (clip.name || s.text_a).toLowerCase().replace(/[^a-z0-9]+/g,"-")
+      .slice(0,28).replace(/^-|-$/g,"") || "clip";
+    dl.download = `forge-${base}-${clip.id.slice(0,6)}.wav`;
+  }
+
+  // Editable title - click ✎ to rename (persists to the server + Library).
+  function showTitle() {
+    titlerow.innerHTML = '<b class="ctitle"></b><button class="rename" title="Rename">✎</button>';
+    titlerow.querySelector(".ctitle").textContent = clip.name || defaultTitle;
+    titlerow.querySelector(".rename").onclick = editTitle;
+  }
+  function editTitle() {
+    const input = document.createElement("input");
+    input.type = "text"; input.className = "renameinput"; input.maxLength = 80;
+    input.value = clip.name || defaultTitle; input.placeholder = "name this sound…";
+    titlerow.replaceChildren(input); input.focus(); input.select();
+    let done = false;
+    const commit = async () => {
+      if (done) return; done = true;
+      const v = input.value.trim();
+      try {
+        await fetch("/api/clip/name", {method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({clip_id: clip.id, name: v})});
+        clip.name = v;
+      } catch (e) {}
+      showTitle(); refreshDownload();
+    };
+    input.onkeydown = e => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      else if (e.key === "Escape") { done = true; showTitle(); }
+    };
+    input.onblur = commit;
+  }
+  showTitle(); refreshDownload();
+  foot.appendChild(dl);
+
+  if (keepable) {
+    const btn = document.createElement("button");
+    btn.className = "keep";
+    btn.textContent = kept.has(clip.id) ? "✓ Kept" : "Keep";
+    if (kept.has(clip.id)) btn.classList.add("kept");
+    btn.onclick = async () => {
+      await fetch("/api/keep", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({clip_id: clip.id})});
+      kept.add(clip.id); btn.textContent="✓ Kept"; btn.classList.add("kept");
+      loadCrate();
+    };
+    foot.appendChild(btn);
+  }
+  if (removable) {
+    const rm = document.createElement("button");
+    rm.className = "keep"; rm.style.background = "var(--panel2)"; rm.style.color = "var(--muted)";
+    rm.textContent = "✕ Remove";
+    rm.onclick = async () => {
+      await fetch("/api/unkeep", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({clip_id: clip.id})});
+      kept.delete(clip.id);
+      loadCrate();
+    };
+    foot.appendChild(rm);
+  }
+
+  // Restyle (Transmute) - SA3 audio-to-audio reinterpretation of THIS clip.
+  // Works on any clip (MRT2- or SA3-made): the MRT2→SA3 bridge.
+  const rs = document.createElement("button");
+  rs.className = "mini"; rs.textContent = "⟳ Restyle";
+  const form = document.createElement("div"); form.className = "rsform";
+  form.innerHTML = `
+    <div class="lab">Restyle toward…</div>
+    <input type="text" class="rsp" placeholder="describe the target sound - e.g. 'epic cinematic strings, slow, film score'" />
+    <div class="rstips">Describe the <b>destination sound</b>, not a command. SA3 understands rich
+      natural language: <b>genre · instruments · mood · BPM · production</b> (e.g. “vintage tape”).
+      More detail = better. <i>“warmer” is weak; “warm analog tape, mellow Rhodes, 70 BPM” is strong.</i></div>
+    <div class="rschips">
+      <span class="chip" data-p="warm analog tape, mellow Rhodes, slow jazz, 70 BPM">warm jazz</span>
+      <span class="chip" data-p="aggressive distorted electric guitar, fast punk energy">distorted guitar</span>
+      <span class="chip" data-p="dark cinematic synth drone, ominous, sub bass, film score">cinematic drone</span>
+      <span class="chip" data-p="TrackType: Instrument, lush orchestral strings, emotional, legato">orchestral strings</span>
+      <span class="chip" data-p="dreamy lo-fi hip hop, vinyl crackle, 85 BPM">lo-fi hip hop</span>
+    </div>
+    <div class="lab">Keep original ↔ Reinvent <span class="val rsnv">0.80</span></div>
+    <input type="range" class="rsn" min="0.2" max="1" step="0.05" value="0.8" />
+    <div class="rshint">Low = subtle restyle (keeps the original's groove & timing). High = bold reinvention.</div>
+    <div class="lab">Length <span class="val rslv">8.0s</span></div>
+    <input type="range" class="rsl" min="2" max="20" step="1" value="10" />
+    <button class="go">Transmute →</button>
+    <div class="rsstatus"></div>`;
+  rs.onclick = () => { form.classList.toggle("open"); if (form.classList.contains("open")) form.querySelector(".rsp").focus(); };
+  form.querySelectorAll(".rschips .chip").forEach(c => c.onclick = () => {
+    const inp = form.querySelector(".rsp"); inp.value = c.dataset.p; inp.focus();
+  });
+  const nv = form.querySelector(".rsn");
+  nv.oninput = () => form.querySelector(".rsnv").textContent = (+nv.value).toFixed(2);
+  const lv = form.querySelector(".rsl");
+  lv.oninput = () => form.querySelector(".rslv").textContent = (lv.value*0.8).toFixed(1)+"s";
+  form.querySelector(".go").onclick = async () => {
+    const prompt = form.querySelector(".rsp").value.trim();
+    const st = form.querySelector(".rsstatus");
+    if (!prompt) { st.textContent = "Write a restyle prompt first."; return; }
+    const go = form.querySelector(".go"); go.disabled = true;
+    st.innerHTML = '<span class="spinner"></span>Transmuting (SA3)…';
+    try {
+      const r = await fetch("/api/transmute", {method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({clip_id: clip.id, prompt, noise:+nv.value, chunks:+lv.value})});
+      if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+      addTake(await r.json());
+      st.textContent = "Done ✓ - added to Latest takes";
+    } catch(e) { st.textContent = "⚠ " + e.message; }
+    go.disabled = false;
+  };
+  foot.appendChild(rs);
+  div.appendChild(form);
+
+  // Send to Audiotool - upload this clip + drop it into a project to arrange/edit.
+  // Hidden unless the server reports a connected PAT (body.at-on).
+  const at = document.createElement("button");
+  at.className = "mini atbtn"; at.textContent = "↗ Audiotool";
+  at.title = "Send this clip into an Audiotool project to arrange & edit";
+  at.onclick = async () => {
+    at.disabled = true; const label = at.textContent; at.textContent = "Sending…";
+    try {
+      const r = await fetch("/api/audiotool/send", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({clip_id: clip.id, project: atProject, bpm: atProject ? atTempo : undefined})});
+      if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+      const d = await r.json();
+      atProject = d.project_name; atUrl = d.project_url;   // chain later clips into the same project
+      if (!atOpened) { window.open(d.project_url, "_blank"); atOpened = true; }
+      renderAtBar();
+      at.textContent = "✓ Sent";
+    } catch(e) { at.textContent = "⚠ failed"; alert("Audiotool: " + e.message); }
+    setTimeout(() => { at.textContent = label; at.disabled = false; }, 2200);
+  };
+  foot.appendChild(at);
+  return div;
+}
+
+// Audiotool session state. atProject = where sends go (chained). atTempo set only
+// when you CONNECT a project (so we can read + match its tempo).
+let atProject = null, atUrl = null, atTempo = null, atSig = null, atOpened = false;
+
+function renderAtBar() {
+  const bar = $("atbar"); if (!bar) return;
+  bar.style.display = "block";
+  if (atProject && atTempo) {            // connected to a real project (tempo known)
+    bar.innerHTML = `🎛 <b>Connected</b> - <span class="badge">${atTempo} BPM · ${atSig}</span>.
+      New clips can match this tempo; sends land here.
+      <a href="${atUrl}" target="_blank">Open ↗</a> · <a href="#" id="atDisc">Disconnect</a>`;
+    $("atDisc").onclick = e => { e.preventDefault(); disconnectAt(); };
+  } else if (atProject) {                 // a session project we created via send
+    bar.innerHTML = `🎛 Session ready - clips you send land here.
+      <a href="${atUrl}" target="_blank">Open in Audiotool ↗</a>`;
+  } else {                                // not connected: offer to connect a project
+    bar.innerHTML = `<div class="row2">🎛 <span>Audiotool:</span>
+      <input class="atlink" id="atLink" placeholder="paste an Audiotool project link to match its tempo…" />
+      <button class="mini" id="atConnect">Connect</button>
+      <span style="color:var(--muted)">- or just send a clip to start a fresh project</span></div>`;
+    $("atConnect").onclick = connectAt;
+    $("atLink").onkeydown = e => { if (e.key === "Enter") connectAt(); };
+  }
+}
+async function connectAt() {
+  const link = ($("atLink") && $("atLink").value || "").trim();
+  if (!link) return;
+  const btn = $("atConnect"); if (btn) { btn.disabled = true; btn.textContent = "…"; }
+  try {
+    const r = await fetch("/api/audiotool/project", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({project: link})});
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    atProject = d.project_name; atUrl = d.project_url; atTempo = d.tempo_bpm;
+    atSig = `${d.signature_num}/${d.signature_den}`; atOpened = true;
+    document.body.classList.add("at-connected");
+    $("matchBpm").textContent = `(${atTempo} BPM)`;
+    renderAtBar();
+  } catch (e) {
+    alert("Audiotool: " + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = "Connect"; }
+  }
+}
+function disconnectAt() {
+  atProject = atUrl = atTempo = atSig = null; atOpened = false;
+  document.body.classList.remove("at-connected");
+  renderAtBar();
+}
+async function loadAudiotoolStatus() {
+  try {
+    const { connected } = await (await fetch("/api/audiotool/status")).json();
+    if (connected) { document.body.classList.add("at-on"); renderAtBar(); }
+  } catch (e) {}
+}
+
+// add a clip to the "Latest takes" column (clearing the empty placeholder)
+function addTake(clip) {
+  const t = $("takes");
+  if (t.querySelector(".empty")) t.innerHTML = "";
+  t.prepend(clipCard(clip));
+}
+
+async function generate() {
+  setBusy(true);
+  try {
+    const r = await fetch("/api/generate", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body: JSON.stringify(spec())});
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    addTake(await r.json());
+    setBusy(false, "Done ✓");
+  } catch(e) { setBusy(false, "⚠ " + e.message); }
+}
+
+async function variations() {
+  setBusy(true, "Generating 4 variations…");
+  try {
+    const r = await fetch("/api/variations", {method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({...spec(), n:4})});
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const {clips} = await r.json();
+    clips.reverse().forEach(addTake);
+    setBusy(false, "Done ✓ - 4 takes");
+  } catch(e) { setBusy(false, "⚠ " + e.message); }
+}
+
+async function loadCrate() {
+  const r = await fetch("/api/crate");
+  const {clips} = await r.json();
+  const el = $("crate");
+  if (!clips.length) { el.innerHTML = '<div class="empty">Saved sounds appear here.</div>'; return; }
+  el.innerHTML = "";
+  clips.forEach(c => { kept.add(c.id); el.appendChild(clipCard(c, {keepable:false, removable:true})); });
+}
+
+// hint chips → append to whichever prompt field was last focused (default A)
+let lastField = "a";
+["a","b"].forEach(id => $(id).addEventListener("focus", () => lastField = id));
+function addTag(t) {
+  const f = $(lastField), v = f.value.trim();
+  f.value = v ? v.replace(/,\s*$/,"") + ", " + t : t;
+  f.focus();
+}
+async function loadHints() {
+  const h = await (await fetch("/api/hints")).json();
+  const box = $("hintBox"); box.innerHTML = "";
+  for (const [cat, tags] of Object.entries(h)) {
+    const c = document.createElement("div"); c.className = "cat"; c.textContent = cat; box.appendChild(c);
+    const row = document.createElement("div"); row.className = "chips";
+    tags.forEach(t => { const s = document.createElement("span"); s.className = "chip";
+      s.textContent = t; s.onclick = () => addTag(t); row.appendChild(s); });
+    box.appendChild(row);
+  }
+}
+
+// ── Tucked-away teaching: ⓘ popovers (plain words + how the MODEL responds) ──
+const HELP = {
+  a: ["Prompt A", "The main description of the sound you want. Be vivid: genre, instruments, mood, tempo (BPM).",
+      "Turned into a <b>style embedding</b> (MRT2: MusicCoCa) or text caption (SA3) that steers every generated chunk."],
+  b: ["Prompt B - morph target", "An optional second sound to morph toward. Leave empty for a single style.",
+      "MRT2 <b>interpolates</b> between the A and B style vectors - its signature morph. (SA3 has no native blend, so B just gets folded into the text.)"],
+  blend: ["Blend A ↔ B", "How far to morph from A (left) toward B (right).",
+      "A linear mix of the two style vectors: 0 = all A, 1 = all B. The heart of MRT2's “Collider” morph."],
+  key: ["Key", "Optional musical key to keep the music in.",
+      "Feeds a <b>scale mask</b> to MRT2's note channel - in-key pitches allowed, out-of-key muted. (SA3 ignores this; write “in A minor” in the prompt instead.)"],
+  density: ["Density", "Sparse & calm (left) to dense & busy (right).",
+      "Drives MRT2's <b>guidance scale (cfg)</b> - higher = stronger prompt adherence and a fuller texture."],
+  length: ["Length", "How long the clip is.",
+      "The number of generate() chunks (~0.8s each). MRT2 builds them one at a time, <b>threading state</b> so the music evolves."],
+  drums: ["Drums", "Ask the model to add a drum track.",
+      "Toggles MRT2's <b>drum-conditioning</b> channel (on/off)."],
+  vary: ["Density sweep ×4", "Four takes of one idea, sparse → dense.",
+      "MRT2 is <b>deterministic</b> (same input → same output), so we vary the input (density) to get different takes. SA3 instead varies via a random seed."],
+  engine: ["Engine", "Which AI model generates the sound (your choice is always used).",
+      "<b>SA3</b> (Stable Audio 3): fast, local, polished single clips & samples - best for one-shots. <b>MRT2</b> (Magenta RT): real-time, evolving, and the <b>only</b> one that truly morphs Prompt A↔B - pick it when using Prompt B. Restyle always uses SA3."],
+};
+function initHelp(scope=document) {
+  scope.querySelectorAll(".info[data-help]").forEach(icon => {
+    if (icon._wired) return; icon._wired = true;
+    const h = HELP[icon.dataset.help]; if (!h) return;
+    const pop = document.createElement("span"); pop.className = "pop";
+    pop.innerHTML = `<span class="pt">${h[0]}</span>${h[1]}<span class="pm">${h[2]}</span>`;
+    icon.appendChild(pop);
+    icon.addEventListener("click", e => {
+      e.preventDefault();
+      document.querySelectorAll(".pop.open").forEach(p => { if (p !== pop) p.classList.remove("open"); });
+      pop.classList.toggle("open");
+    });
+    icon.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pop.classList.toggle("open"); }
+      else if (e.key === "Escape") pop.classList.remove("open");
+    });
+  });
+}
+document.addEventListener("click", e => {   // click-away closes pinned popovers
+  if (!e.target.closest(".info")) document.querySelectorAll(".pop.open").forEach(p => p.classList.remove("open"));
+});
+
+// engine picker wiring
+document.querySelectorAll("#engineSeg .segbtn").forEach(b => b.onclick = () => {
+  engine = b.dataset.eng;
+  document.querySelectorAll("#engineSeg .segbtn").forEach(x => x.classList.toggle("on", x === b));
+  updateMorphNote();
+});
+$("b").addEventListener("input", updateMorphNote);
+
+// rising forge embers (atmosphere)
+(function embers(){ const box = $("embers"); if (!box) return;
+  for (let i=0;i<16;i++){ const e=document.createElement("i");
+    e.style.left=(Math.random()*100)+"vw";
+    e.style.animationDuration=(5+Math.random()*7)+"s";
+    e.style.animationDelay=(-Math.random()*10)+"s";
+    const sz=2+Math.random()*4; e.style.width=e.style.height=sz+"px";
+    box.appendChild(e); }
+})();
+
+$("gen").onclick = generate;
+$("vary").onclick = variations;
+initHelp();
+loadCrate();
+loadHints();
+loadAudiotoolStatus();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "score-the-story-audiotool-export",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Writes a Score-the-Story arrangement into an editable Audiotool project via the Nexus SDK.",
+  "scripts": {
+    "start": "tsx index.ts",
+    "presets": "tsx list-presets.ts"
+  },
+  "dependencies": {
+    "@audiotool/nexus": "^0.0.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "~5.8.3",
+    "@types/node": "^24.3.0"
+  }
+}

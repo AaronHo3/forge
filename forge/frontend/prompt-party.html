@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PROMPT PARTY</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+  :root{
+    --bg:#1a1033; --bg2:#241449; --ink:#fdf6e3; --muted:#b9a7e6;
+    --accent:#ffd23f; --pink:#ff4d8d; --cyan:#34e1eb; --green:#5dffa0; --line:#3a2a6b; --shadow:#0c0720;
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:22px/1.25 'VT323',ui-monospace,monospace;
+        background-image:radial-gradient(circle at 50% -10%, #3a1f6e 0%, var(--bg) 60%); min-height:100vh; }
+  body::after{ content:""; position:fixed; inset:0; pointer-events:none; z-index:50;
+    background:repeating-linear-gradient(to bottom, rgba(0,0,0,.16) 0 2px, transparent 2px 4px); opacity:.5; }
+  body.shake{ animation:shake .45s; }
+  @keyframes shake{ 0%,100%{transform:translate(0,0)} 20%{transform:translate(-5px,3px)} 40%{transform:translate(5px,-2px)} 60%{transform:translate(-4px,-3px)} 80%{transform:translate(4px,2px)} }
+  h1,h2,.px-font,button,.tag,.code{ font-family:'Press Start 2P',monospace; }
+  header{ padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:4px solid var(--shadow); }
+  header h1{ margin:0; font-size:18px; color:var(--accent); text-shadow:3px 3px 0 var(--pink); letter-spacing:1px; animation:titlepulse 2.4s ease-in-out infinite; }
+  @keyframes titlepulse{ 0%,100%{text-shadow:3px 3px 0 var(--pink)} 50%{text-shadow:3px 3px 0 var(--cyan)} }
+  .hbtns{ display:flex; gap:8px; }
+  a.back,button.iconbtn{ font-family:'Press Start 2P'; font-size:9px; text-decoration:none; color:var(--ink);
+    background:var(--bg2); border:3px solid var(--shadow); padding:8px 10px; cursor:pointer; box-shadow:none; }
+  .wrap{ max-width:820px; margin:0 auto; padding:18px; }
+  .panel{ background:var(--bg2); border:4px solid var(--shadow); box-shadow:6px 6px 0 var(--shadow); padding:18px; margin-bottom:18px; }
+  .lab{ font-family:'Press Start 2P'; font-size:9px; color:var(--cyan); letter-spacing:1px; margin:0 0 10px; }
+  .muted{ color:var(--muted); }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input[type=text]{ font:22px 'VT323',monospace; padding:8px 12px; background:#140c2b; color:var(--ink); border:3px solid var(--shadow); width:100%; outline:none; }
+  input[type=text]:focus{ border-color:var(--accent); }
+  .code-in{ font-family:'Press Start 2P'; font-size:14px; text-transform:uppercase; letter-spacing:4px; width:140px; text-align:center; }
+  button{ font-family:'Press Start 2P'; font-size:11px; color:var(--shadow); background:var(--accent); border:0; box-shadow:4px 4px 0 var(--shadow); padding:12px 14px; cursor:pointer; }
+  button:active{ transform:translate(2px,2px); box-shadow:2px 2px 0 var(--shadow); }
+  button.alt{ background:var(--cyan); } button.ghost{ background:var(--bg); color:var(--ink); box-shadow:4px 4px 0 var(--shadow); }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .hidden{ display:none; }
+  .status{ color:var(--accent); min-height:26px; }
+  .code{ font-size:40px; color:var(--accent); text-align:center; text-shadow:3px 3px 0 var(--pink); letter-spacing:6px; }
+  /* STAGE */
+  #stage{ background:linear-gradient(#1d1142,#2a1856); border:4px solid var(--shadow); box-shadow:6px 6px 0 var(--shadow); padding:18px 12px 10px; margin-bottom:18px; position:relative; overflow:hidden; }
+  #stage .floor{ position:absolute; left:0; right:0; bottom:0; height:26px; background:#120a29; border-top:4px solid #3a2a6b; }
+  .gallery{ display:flex; flex-wrap:wrap; gap:14px 18px; justify-content:center; align-items:flex-end; position:relative; z-index:2; min-height:96px; }
+  .char-slot{ display:flex; flex-direction:column; align-items:center; width:74px; position:relative; }
+  .char{ width:56px; height:56px; }
+  .char svg{ width:100%; height:100%; image-rendering:pixelated; display:block; }
+  .name{ font-family:'Press Start 2P'; font-size:8px; color:var(--ink); margin-top:6px; max-width:74px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; }
+  .bubble{ font-family:'Press Start 2P'; font-size:8px; background:var(--ink); color:var(--shadow); padding:4px 6px; border:2px solid var(--shadow); margin-bottom:4px; min-height:18px; }
+  .crown{ position:absolute; top:-12px; font-size:18px; z-index:3; }
+  .idle{ animation:bob 1.6s ease-in-out infinite; }
+  .think{ animation:wob 0.9s ease-in-out infinite; }
+  .dance{ animation:dance 0.5s ease-in-out infinite; }
+  .cheer{ animation:cheer 0.5s ease-in-out infinite; }
+  .jump{ animation:jump 0.5s ease-out 1; }
+  .win{ animation:windance 0.45s ease-in-out infinite; }
+  .still{ animation:none; }
+  @keyframes bob{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+  @keyframes wob{ 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(5deg)} }
+  @keyframes dance{ 0%{transform:translateY(0) rotate(-6deg)} 50%{transform:translateY(-8px) rotate(6deg)} 100%{transform:translateY(0) rotate(-6deg)} }
+  @keyframes cheer{ 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-10px) scale(1.08)} }
+  @keyframes jump{ 0%{transform:translateY(0)} 40%{transform:translateY(-22px)} 100%{transform:translateY(0)} }
+  @keyframes windance{ 0%{transform:translateY(0) rotate(-8deg) scale(1.1)} 50%{transform:translateY(-12px) rotate(8deg) scale(1.15)} 100%{transform:translateY(0) rotate(-8deg) scale(1.1)} }
+  /* brief + timer */
+  .brief{ font-family:'Press Start 2P'; font-size:16px; color:var(--accent); line-height:1.6; margin:6px 0 12px; text-shadow:2px 2px 0 var(--shadow); }
+  .timer{ height:14px; background:#140c2b; border:3px solid var(--shadow); overflow:hidden; margin:12px 0; }
+  .timer>div{ height:100%; width:100%; background:var(--green); transition:width .2s linear; }
+  .timer.urgent>div{ background:var(--pink); animation:blink .35s steps(2) infinite; }
+  @keyframes blink{ 50%{opacity:.4} }
+  /* chips */
+  .chipgrp{ margin:10px 0; } .chipgrp .gl{ font-family:'Press Start 2P'; font-size:8px; color:var(--cyan); margin-bottom:6px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:7px; }
+  .chip{ font-family:'VT323'; font-size:19px; background:#140c2b; color:var(--ink); border:3px solid var(--shadow); padding:3px 10px; cursor:pointer; }
+  .chip:hover{ border-color:var(--pink); color:var(--pink); }
+  .chip:active{ transform:translate(1px,1px); }
+  /* entries / results */
+  .entry{ background:#140c2b; border:3px solid var(--shadow); box-shadow:4px 4px 0 var(--shadow); padding:12px; margin-bottom:12px; }
+  .entry.win{ border-color:var(--green); }
+  .entry.playing{ border-color:var(--cyan); box-shadow:0 0 0 3px rgba(52,225,235,.4),4px 4px 0 var(--shadow); }
+  .entry audio{ width:100%; margin:8px 0 2px; filter:hue-rotate(220deg) saturate(.8); }
+  .res-top{ display:flex; justify-content:space-between; align-items:center; }
+  .res-top .nm{ font-family:'Press Start 2P'; font-size:11px; }
+  .pts{ font-family:'Press Start 2P'; font-size:12px; color:var(--accent); }
+  .prompt-txt{ color:var(--muted); font-style:italic; margin-top:2px; }
+  .note{ margin-top:8px; padding:8px 10px; border-left:4px solid var(--green); background:#10251a; }
+  .board .brow{ display:flex; justify-content:space-between; padding:8px 12px; border:3px solid var(--shadow); background:#140c2b; margin-bottom:7px; }
+  .board .brow.me{ border-color:var(--accent); } .board .s{ font-family:'Press Start 2P'; font-size:11px; color:var(--accent); }
+  .banned-line{ font-size:18px; color:var(--muted); margin:8px 0 4px; }
+  .banned-line b{ color:var(--pink); }
+  input.bad{ border-color:var(--pink)!important; }
+  select{ font-family:'VT323'; font-size:20px; background:#140c2b; color:var(--ink); border:3px solid var(--shadow); padding:4px 10px; }
+  .dl{ display:inline-block; font-family:'Press Start 2P'; font-size:8px; color:var(--cyan); text-decoration:none; border:2px solid var(--shadow); background:#140c2b; padding:6px 8px; margin-top:6px; }
+  .dl:hover{ color:var(--pink); border-color:var(--pink); }
+  /* confetti */
+  .confetti{ position:fixed; top:-10px; width:8px; height:8px; z-index:60; animation:fall linear forwards; }
+  @keyframes fall{ to{ transform:translateY(105vh) rotate(540deg); } }
+  #vizCanvas{ width:100%; height:80px; image-rendering:pixelated; background:#0c0720; border:3px solid var(--shadow); display:block; margin:0 0 10px; }
+  #reactBar{ position:fixed; left:0; right:0; bottom:0; z-index:64; display:flex; gap:8px; justify-content:center; padding:8px; background:rgba(12,7,32,.85); border-top:3px solid var(--shadow); }
+  #reactBar button{ font-size:20px; padding:6px 10px; background:var(--panel2); box-shadow:none; border:2px solid var(--shadow); }
+  .floatEmoji{ position:fixed; bottom:54px; font-size:34px; z-index:65; pointer-events:none; animation:floatUp 2.1s ease-out forwards; }
+  @keyframes floatUp{ 0%{opacity:1; transform:translateY(0) scale(.6)} 20%{transform:translateY(-10vh) scale(1.1)} 100%{opacity:0; transform:translateY(-62vh) scale(1)} }
+  .xptoast{ position:fixed; top:70px; left:50%; transform:translateX(-50%); z-index:75; font-family:'Press Start 2P'; font-size:13px; color:var(--accent); background:var(--panel2); border:3px solid var(--shadow); padding:10px 14px; animation:xptoast 2.6s ease-out forwards; }
+  @keyframes xptoast{ 0%{opacity:0; transform:translate(-50%,10px)} 12%{opacity:1; transform:translate(-50%,0)} 80%{opacity:1} 100%{opacity:0; transform:translate(-50%,-14px)} }
+  /* splash overlay */
+  #splash{ position:fixed; inset:0; z-index:70; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+  #splash.hidden{ display:none; }
+  #splash .big{ font-family:'Press Start 2P'; font-size:38px; color:var(--accent); text-shadow:5px 5px 0 var(--pink); text-align:center; animation:pop .5s ease-out; }
+  @keyframes pop{ 0%{transform:scale(.2); opacity:0} 60%{transform:scale(1.15)} 100%{transform:scale(1); opacity:1} }
+</style>
+</head>
+<body>
+  <header>
+    <h1>★ PROMPT PARTY ★</h1>
+    <div class="hbtns">
+      <span id="lvl" class="iconbtn" style="cursor:default; color:var(--accent)">LVL 1</span>
+      <button id="muteBtn" class="iconbtn" title="sound">SND:ON</button>
+      <a class="back" href="/">&lt; EXIT</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div id="landing" class="panel">
+      <div class="lab">ENTER YOUR NAME</div>
+      <input id="name" type="text" placeholder="player one" maxlength="24" />
+      <div class="row" style="margin-top:16px">
+        <button id="createBtn">HOST PARTY</button>
+        <span class="muted px-font" style="font-size:9px">OR</span>
+        <input id="codeIn" class="code-in" type="text" placeholder="CODE" maxlength="4" />
+        <button id="joinBtn" class="alt">JOIN</button>
+      </div>
+      <div class="status" id="landErr" style="margin-top:10px"></div>
+    </div>
+
+    <div id="stage" class="hidden">
+      <div class="gallery" id="gallery"></div>
+      <div class="floor"></div>
+    </div>
+
+    <div id="lobby" class="panel hidden" style="text-align:center">
+      <div class="lab">ROOM CODE</div>
+      <div class="code" id="code">----</div>
+      <div class="muted" id="shareLine" style="margin-top:8px"></div>
+      <div id="clipWrap" class="hidden" style="margin-top:14px">
+        <span class="lab" style="display:inline-block; margin:0 8px 0 0">CLIP LENGTH</span>
+        <select id="clipLen"><option value="8">8 sec</option><option value="12">12 sec</option><option value="16">16 sec</option></select>
+      </div>
+      <div id="engWrap" class="hidden" style="margin-top:10px">
+        <span class="lab" style="display:inline-block; margin:0 8px 0 0">MODEL</span>
+        <select id="engSel"><option value="mrt2">Magenta RT</option><option value="sa3">Stable Audio 3</option></select>
+      </div>
+      <div style="margin-top:18px">
+        <button id="startBtn" class="hidden">START!</button>
+        <div class="status" id="lobbyStatus">waiting for host...</div>
+      </div>
+    </div>
+
+    <div id="write" class="panel hidden">
+      <div class="lab" id="roundNo"></div>
+      <div class="brief" id="brief"></div>
+      <div class="muted">describe the SOUND (instruments, genre, tempo), not the scene. avoid the brief's words and their synonyms.</div>
+      <div class="banned-line" id="bannedLine"></div>
+      <div class="timer"><div id="wTimer"></div></div>
+      <input id="prompt" type="text" placeholder="warm lo-fi piano, slow and dreamy" />
+      <div id="chips"></div>
+      <div class="row" style="margin-top:12px; justify-content:space-between">
+        <button id="clearP" class="ghost">CLEAR</button>
+        <button id="submitBtn">SUBMIT</button>
+      </div>
+      <div class="status" id="wStatus" style="margin-top:8px"></div>
+    </div>
+
+    <div id="gen" class="panel hidden" style="text-align:center">
+      <div class="brief">♪ COMPOSING... ♪</div>
+      <div class="muted" id="genStatus">the AI is turning each prompt into music</div>
+    </div>
+
+    <div id="vote" class="panel hidden">
+      <div class="lab">VOTE FOR THE BEST MATCH</div>
+      <div class="brief" id="voteBrief" style="font-size:13px"></div>
+      <canvas id="vizCanvas" width="600" height="80"></canvas>
+      <div class="timer"><div id="vTimer"></div></div>
+      <div id="entries"></div>
+      <div class="status" id="vStatus"></div>
+    </div>
+
+    <div id="reveal" class="panel hidden">
+      <div class="lab" id="revRound">RESULTS</div>
+      <div class="brief" id="revBrief" style="font-size:13px"></div>
+      <div id="results"></div>
+      <div class="lab" style="margin-top:14px">LEADERBOARD</div>
+      <div class="board" id="board"></div>
+    </div>
+  </div>
+
+  <div id="splash" class="hidden"><div class="big" id="splashText"></div></div>
+  <div id="reactBar" class="hidden"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+/* ---------- chiptune sound effects (synth, no files) ---------- */
+const SFX=(()=>{
+  let ctx=null, muted=false;
+  function ac(){ if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)(); if(ctx.state==="suspended") ctx.resume(); return ctx; }
+  function tone(freq,dur,type,vol,when){ const c=ac(); const t=c.currentTime+(when||0);
+    const o=c.createOscillator(), g=c.createGain(); o.type=type||"square"; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(vol||0.13,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+0.03); }
+  function seq(notes,type,vol){ let t=0; notes.forEach(n=>{ tone(n[0],n[1],type,vol,t); t+=n[1]; }); }
+  const api={
+    resume(){ try{ ac(); }catch(e){} },
+    toggle(){ muted=!muted; return !muted; },
+    click(){ if(!muted) tone(660,0.05,"square",0.08); },
+    pop(){ if(!muted) tone(880,0.08,"triangle",0.12); },
+    join(){ if(!muted) seq([[523,0.07],[784,0.09]],"square",0.11); },
+    start(){ if(!muted) seq([[523,0.1],[659,0.1],[784,0.16]],"square",0.13); },
+    round(){ if(!muted) seq([[392,0.1],[523,0.1],[659,0.16]],"square",0.13); },
+    go(){ if(!muted) tone(988,0.2,"square",0.15); },
+    submit(){ if(!muted) seq([[659,0.07],[988,0.11]],"square",0.12); },
+    vote(){ if(!muted) tone(740,0.08,"square",0.11); },
+    tick(){ if(!muted) tone(440,0.04,"square",0.09); },
+    buzz(){ if(!muted) tone(150,0.28,"sawtooth",0.14); },
+    reveal(){ if(!muted) seq([[784,0.08],[988,0.12]],"triangle",0.12); },
+    win(){ if(!muted) seq([[523,0.12],[659,0.12],[784,0.12],[1047,0.28]],"square",0.15); },
+  };
+  return api;
+})();
+
+/* ---------- pixel characters (5 species) ---------- */
+const COLORS=["#ff4d8d","#ffd23f","#34e1eb","#5dffa0","#a78bfa","#ff8c42","#7afcff","#ff6b6b"];
+function charSVG(color,variant){
+  const v=variant%5; let body;
+  if(v===0){ body=`<rect x="3" y="4" width="10" height="10" fill="${color}"/><rect x="2" y="6" width="1" height="6" fill="${color}"/><rect x="13" y="6" width="1" height="6" fill="${color}"/>
+    <rect x="5" y="6" width="2" height="3" fill="#fff"/><rect x="9" y="6" width="2" height="3" fill="#fff"/><rect x="6" y="7" width="1" height="1" fill="#1a1033"/><rect x="10" y="7" width="1" height="1" fill="#1a1033"/>
+    <rect x="6" y="11" width="4" height="1" fill="rgba(0,0,0,.45)"/><rect x="4" y="14" width="2" height="1" fill="${color}"/><rect x="10" y="14" width="2" height="1" fill="${color}"/>`; }
+  else if(v===1){ body=`<rect x="7" y="0" width="2" height="1" fill="#bbb"/><rect x="7" y="1" width="1" height="2" fill="#bbb"/><rect x="3" y="3" width="10" height="10" fill="${color}"/>
+    <rect x="5" y="6" width="2" height="2" fill="#1a1033"/><rect x="9" y="6" width="2" height="2" fill="#1a1033"/><rect x="5" y="6" width="1" height="1" fill="#34e1eb"/><rect x="9" y="6" width="1" height="1" fill="#34e1eb"/>
+    <rect x="5" y="10" width="6" height="1" fill="#1a1033"/><rect x="4" y="14" width="2" height="1" fill="${color}"/><rect x="10" y="14" width="2" height="1" fill="${color}"/>`; }
+  else if(v===2){ body=`<rect x="4" y="2" width="8" height="1" fill="${color}"/><rect x="3" y="3" width="10" height="9" fill="${color}"/>
+    <rect x="3" y="12" width="2" height="1" fill="${color}"/><rect x="7" y="12" width="2" height="1" fill="${color}"/><rect x="11" y="12" width="2" height="1" fill="${color}"/>
+    <rect x="5" y="6" width="2" height="3" fill="#fff"/><rect x="9" y="6" width="2" height="3" fill="#fff"/><rect x="6" y="7" width="1" height="1" fill="#1a1033"/><rect x="10" y="7" width="1" height="1" fill="#1a1033"/>`; }
+  else if(v===3){ body=`<rect x="3" y="2" width="2" height="2" fill="${color}"/><rect x="11" y="2" width="2" height="2" fill="${color}"/><rect x="3" y="4" width="10" height="9" fill="${color}"/>
+    <rect x="5" y="6" width="2" height="2" fill="#1a1033"/><rect x="9" y="6" width="2" height="2" fill="#1a1033"/><rect x="7" y="9" width="2" height="1" fill="rgba(0,0,0,.4)"/>
+    <rect x="1" y="8" width="2" height="1" fill="#fff"/><rect x="13" y="8" width="2" height="1" fill="#fff"/><rect x="4" y="14" width="2" height="1" fill="${color}"/><rect x="10" y="14" width="2" height="1" fill="${color}"/>`; }
+  else { body=`<rect x="4" y="3" width="8" height="9" fill="${color}"/><rect x="3" y="5" width="1" height="5" fill="${color}"/><rect x="12" y="5" width="1" height="5" fill="${color}"/>
+    <rect x="6" y="6" width="2" height="2" fill="#fff"/><rect x="9" y="6" width="2" height="2" fill="#fff"/><rect x="6" y="6" width="1" height="1" fill="#1a1033"/><rect x="9" y="6" width="1" height="1" fill="#1a1033"/>
+    <rect x="7" y="9" width="3" height="2" fill="#ff8c42"/><rect x="5" y="14" width="2" height="1" fill="#ff8c42"/><rect x="9" y="14" width="2" height="1" fill="#ff8c42"/>`; }
+  return `<svg viewBox="0 0 16 16" shape-rendering="crispEdges">${body}</svg>`;
+}
+
+let ws=null, me="", isHost=false, chips={}, timerInt=null, voted=false, roster=[], curPhase="landing", lastRosterN=0, bannedWords=[];
+function idxFor(name){ const i=roster.findIndex(r=>r.name===name); return i<0?0:i; }
+function colorFor(name){ return COLORS[idxFor(name)%COLORS.length]; }
+function renderStage(){
+  $("stage").classList.remove("hidden");
+  const g=$("gallery"); g.innerHTML="";
+  roster.forEach((r,i)=>{
+    const slot=document.createElement("div"); slot.className="char-slot"; slot.dataset.name=r.name;
+    slot.innerHTML=`<div class="bubble" data-bubble style="visibility:hidden">…</div>
+      <div class="char idle" style="animation-delay:${(Math.random()*1.2).toFixed(2)}s">${charSVG(colorFor(r.name), i)}</div>
+      <div class="name">${r.name===me?"YOU":r.name}</div>`;
+    g.appendChild(slot);
+  });
+}
+function slotOf(name){ return [...document.querySelectorAll(".char-slot")].find(x=>x.dataset.name===name); }
+function charEl(name){ const s=slotOf(name); return s?s.querySelector(".char"):null; }
+function setState(name,cls){ const c=charEl(name); if(!c) return; c.className="char "+cls; c.style.animationDelay=(Math.random()*0.6).toFixed(2)+"s"; }
+function setAll(cls){ roster.forEach(r=>setState(r.name,cls)); }
+function bubble(name,text){ const s=slotOf(name); if(!s) return; const b=s.querySelector("[data-bubble]"); b.textContent=text||"…"; b.style.visibility=text?"visible":"hidden"; }
+function bubbleAll(text){ roster.forEach(r=>bubble(r.name,text)); }
+function crown(name){ const s=slotOf(name); if(s && !s.querySelector(".crown")){ const c=document.createElement("div"); c.className="crown"; c.textContent="👑"; s.appendChild(c); } }
+function oneShot(name,cls){ const c=charEl(name); if(!c) return; c.classList.remove("idle","think","dance","cheer","win"); c.classList.add(cls);
+  setTimeout(()=>{ c.classList.remove(cls); c.classList.add("idle"); }, 520); }
+function winSettle(name){ crown(name); setState(name,"still"); }   // crown + hold still so the board is readable
+
+/* ---------- visualizer + reactions ---------- */
+let vizCtx=null; const vizSrc=new WeakMap();
+function vizFor(el){ let s=vizSrc.get(el); if(s) return s; if(!vizCtx) vizCtx=new (window.AudioContext||window.webkitAudioContext)(); if(vizCtx.state==="suspended") vizCtx.resume();
+  const src=vizCtx.createMediaElementSource(el); const an=vizCtx.createAnalyser(); an.fftSize=64; src.connect(an); an.connect(vizCtx.destination); s={an,data:new Uint8Array(an.frequencyBinCount)}; vizSrc.set(el,s); return s; }
+function runViz(el){ const cv=$("vizCanvas"); if(!cv) return; const g=cv.getContext("2d"); let s; try{ s=vizFor(el); }catch(e){ return; }
+  function frame(){ if(el.paused||el.ended){ g.clearRect(0,0,cv.width,cv.height); return; } s.an.getByteFrequencyData(s.data); g.clearRect(0,0,cv.width,cv.height); const n=s.data.length, bw=cv.width/n;
+    for(let i=0;i<n;i++){ const h=(s.data[i]/255)*cv.height; g.fillStyle=`hsl(${300-i*4},100%,62%)`; g.fillRect(i*bw,cv.height-h,bw-2,h); } requestAnimationFrame(frame); } requestAnimationFrame(frame); }
+function floatEmoji(em){ const d=document.createElement("div"); d.className="floatEmoji"; d.textContent=em; d.style.left=(8+Math.random()*84)+"vw"; document.body.appendChild(d); setTimeout(()=>d.remove(),2200); }
+const REACT_EMOJIS=["😂","🔥","👏","😮","💀","🎉"];
+function initReactBar(){ const b=$("reactBar"); b.innerHTML=""; REACT_EMOJIS.forEach(e=>{ const btn=document.createElement("button"); btn.textContent=e; btn.onclick=()=>{ send({action:"react",emoji:e}); SFX.pop(); }; b.appendChild(btn); }); }
+/* XP / levels (client-side, persists per browser) */
+function xpGet(){ return parseInt(localStorage.getItem("forge_xp")||"0",10); }
+function levelFor(xp){ return Math.floor(xp/500)+1; }
+function showLvl(){ const el=$("lvl"); if(el) el.textContent="LVL "+levelFor(xpGet()); }
+function awardXP(g){ g=Math.max(0,Math.round(g)); if(!g){ showLvl(); return; } const before=levelFor(xpGet());
+  const xp=xpGet()+g; localStorage.setItem("forge_xp",String(xp)); const after=levelFor(xp); showLvl();
+  xpToast("+"+g+" XP"+(after>before?"   LEVEL UP!":"")); if(after>before) SFX.win(); }
+function xpToast(t){ const d=document.createElement("div"); d.className="xptoast"; d.textContent=t; document.body.appendChild(d); setTimeout(()=>d.remove(),2600); }
+
+/* ---------- net ---------- */
+function show(v){ curPhase=v; ["landing","lobby","write","gen","vote","reveal"].forEach(x=>$(x).classList.toggle("hidden", x!==v));
+  $("stage").classList.toggle("hidden", v==="landing");
+  $("reactBar").classList.toggle("hidden", !(v==="vote"||v==="reveal")); }
+function wsUrl(){ return (location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/ws/prompt-party"; }
+function connect(init){ SFX.resume(); ws=new WebSocket(wsUrl());
+  ws.onopen=()=>ws.send(JSON.stringify(init));
+  ws.onmessage=e=>handle(JSON.parse(e.data));
+  ws.onclose=()=>{ $("lobbyStatus").textContent="disconnected."; }; }
+function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+function createParty(){ const n=$("name").value.trim(); if(!n){ $("landErr").textContent="enter your name first."; return; } connect({action:"create",name:n}); }
+function joinParty(){ const n=$("name").value.trim(); const c=$("codeIn").value.trim().toUpperCase();
+  if(!n){ $("landErr").textContent="enter your name first."; return; }
+  if(c.length<4){ $("landErr").textContent="enter the 4-letter code."; return; }
+  connect({action:"join",code:c,name:n}); }
+function startTimer(el,secs){ clearInterval(timerInt); const total=secs*1000, t0=Date.now(); let lastSec=Math.ceil(secs);
+  const bar=el.parentElement; bar.classList.remove("urgent");
+  timerInt=setInterval(()=>{ const ms=Math.max(0,total-(Date.now()-t0)); el.style.width=(100*ms/total)+"%";
+    const left=Math.ceil(ms/1000);
+    if(left<=5) bar.classList.add("urgent");
+    if(left!==lastSec){ lastSec=left; if(left<=5&&left>0) SFX.tick(); }
+    if(ms<=0){ clearInterval(timerInt); SFX.buzz(); } },100); }
+function splash(text,ms,cb){ $("splashText").textContent=text; $("splash").classList.remove("hidden");
+  $("splashText").style.animation="none"; void $("splashText").offsetWidth; $("splashText").style.animation="pop .5s ease-out";
+  setTimeout(()=>{ $("splash").classList.add("hidden"); if(cb) cb(); }, ms); }
+
+function handle(m){
+  if(m.type==="joined"){ me=m.name; isHost=m.host; chips=m.chips||{}; SFX.join(); show("lobby");
+    $("code").textContent=m.code; $("startBtn").classList.toggle("hidden",!isHost);
+    $("clipWrap").classList.toggle("hidden",!isHost); $("engWrap").classList.toggle("hidden",!isHost);
+    $("shareLine").textContent="players: open "+location.origin+"/prompt-party — code "+m.code; renderChips(); }
+  else if(m.type==="rejected"){ $("submitBtn").disabled=false; $("prompt").classList.add("bad"); SFX.buzz();
+    $("wStatus").textContent="remove the brief's words: "+(m.words||[]).join(", "); }
+  else if(m.type==="accepted"){ SFX.submit(); oneShot(me,"jump"); bubble(me,"✓"); $("wStatus").textContent="submitted! waiting for the others..."; }
+  else if(m.type==="lobby"){ $("code").textContent=m.code;
+    if(m.players.length>lastRosterN) SFX.pop(); lastRosterN=m.players.length;
+    roster=m.players.map(n=>({name:n})); renderStage(); setAll("idle"); }
+  else if(m.type==="brief"){ writePhase(m); }
+  else if(m.type==="generating"){ show("gen"); setAll("dance"); bubbleAll("♪");
+    if(m.done!=null) SFX.tick();
+    $("genStatus").textContent = m.done!=null?`composed ${m.done} of ${m.count}...`:"the AI is turning each prompt into music"; }
+  else if(m.type==="vote"){ votePhase(m); }
+  else if(m.type==="reveal"){ revealPhase(m); }
+  else if(m.type==="final"){ finalPhase(m); }
+  else if(m.type==="react"){ floatEmoji(m.emoji); }
+}
+
+function renderChips(){
+  const c=$("chips"); c.innerHTML="";
+  Object.entries(chips).forEach(([grp,words])=>{
+    const g=document.createElement("div"); g.className="chipgrp"; g.innerHTML=`<div class="gl">${grp}</div>`;
+    const row=document.createElement("div"); row.className="chips";
+    words.forEach(w=>{ const b=document.createElement("div"); b.className="chip"; b.textContent=w;
+      b.onclick=()=>{ addWord(w); SFX.click(); }; row.appendChild(b); });
+    g.appendChild(row); c.appendChild(g);
+  });
+}
+function addWord(w){ const inp=$("prompt"); const v=inp.value.trim(); inp.value = v ? (v.replace(/,\s*$/,"")+", "+w) : w; inp.focus(); }
+
+function localHits(p){ const toks=(p.toLowerCase().match(/[a-z]+/g)||[]); const hits=new Set();
+  toks.forEach(t=>bannedWords.forEach(b=>{ if(t===b||(b.length>=4&&(t.includes(b)||b.includes(t)))) hits.add(b); })); return [...hits]; }
+function checkBanned(){ const hits=localHits($("prompt").value); const bad=hits.length>0;
+  $("prompt").classList.toggle("bad",bad); $("submitBtn").disabled=bad;
+  $("bannedLine").innerHTML = `🚫 banned this round: <b>${bannedWords.join(", ")||"—"}</b>`+(bad?` <span style="color:var(--pink)">→ remove: ${hits.join(", ")}</span>`:""); }
+function writePhase(m){ show("write"); voted=false; bannedWords=m.banned||[];
+  $("roundNo").textContent=`ROUND ${m.round} / ${m.total}`;
+  $("brief").textContent="“"+m.brief.toUpperCase()+"”"; $("prompt").value=""; $("prompt").classList.remove("bad"); $("wStatus").textContent="";
+  $("submitBtn").disabled=false; checkBanned();
+  SFX.round();
+  splash(`ROUND ${m.round}`, 950, ()=>{ splash("GO!", 600); SFX.go(); setAll("think"); bubbleAll("?"); startTimer($("wTimer"), m.seconds); });
+}
+
+function votePhase(m){ show("vote"); voted=false; $("vStatus").textContent=""; setAll("idle"); bubbleAll(""); SFX.reveal();
+  $("voteBrief").textContent="BRIEF: “"+m.brief.toUpperCase()+"”"; startTimer($("vTimer"), m.seconds);
+  const el=$("entries"); el.innerHTML="";
+  m.entries.forEach((e,i)=>{ const d=document.createElement("div"); d.className="entry";
+    d.innerHTML=`<div class="res-top"><span class="nm">IDEA ${i+1}</span><button class="voteB alt">VOTE</button></div>
+      ${e.clip_url?`<audio controls src="${e.clip_url}"></audio><a class="dl" href="${e.clip_url}" download="prompt-party-idea${i+1}.wav">⬇ DOWNLOAD</a>`:'<div class="muted">(no audio)</div>'}`;
+    const au=d.querySelector("audio");
+    if(au){ au.addEventListener("play",()=>{ document.querySelectorAll(".entry").forEach(x=>x.classList.remove("playing")); d.classList.add("playing"); setAll("dance"); bubbleAll("♪"); runViz(au); });
+      const stop=()=>{ d.classList.remove("playing"); setAll("idle"); bubbleAll(""); };
+      au.addEventListener("pause",stop); au.addEventListener("ended",stop); }
+    d.querySelector(".voteB").onclick=()=>{ if(voted) return; voted=true; SFX.vote();
+      send({action:"vote", eid:e.eid}); document.querySelectorAll(".voteB").forEach(b=>b.disabled=true);
+      oneShot(me,"cheer"); $("vStatus").textContent="vote locked in!"; };
+    el.appendChild(d); });
+}
+
+function revealPhase(m){ show("reveal"); clearInterval(timerInt); bubbleAll("");
+  $("revRound").textContent="RESULTS"; $("revBrief").textContent="BRIEF: “"+m.brief.toUpperCase()+"”";
+  const el=$("results"); el.innerHTML="";
+  if(!m.results.length){ el.innerHTML='<div class="muted">no entries this round.</div>'; }
+  m.results.forEach((r,i)=>{ const d=document.createElement("div"); d.className="entry"+(i===0?" win":"");
+    d.innerHTML=`<div class="res-top"><span class="nm">${i===0?"🏆 ":""}${r.name===me?"YOU":r.name}</span><span class="pts">+${r.points}</span></div>
+      <div class="prompt-txt">“${(r.prompt||"").replace(/</g,"&lt;")}”</div>
+      ${r.clip_url?`<audio controls src="${r.clip_url}"></audio><a class="dl" href="${r.clip_url}" download="prompt-party-${(r.name||'clip')}.wav">⬇ DOWNLOAD</a>`:""}
+      <div class="muted" style="margin-top:4px">match ${r.score}/100 · ${r.votes} vote${r.votes===1?"":"s"}</div>
+      ${r.note?`<div class="note">🎓 ${r.note}</div>`:""}`;
+    el.appendChild(d); });
+  setAll("still");
+  if(m.results.length){ winSettle(m.results[0].name); celebrate(); }
+  renderBoard(m.scores);
+}
+function renderBoard(scores){
+  $("board").innerHTML=(scores||[]).map((s,i)=>`<div class="brow ${s.name===me?'me':''}">
+    <span>${["🥇","🥈","🥉"][i]||(i+1)} ${s.name===me?"YOU":s.name}</span><span class="s">${s.score}</span></div>`).join("");
+}
+function renderAwards(badges){ if(!badges||!Object.keys(badges).length) return;
+  const lab=document.createElement("div"); lab.className="lab"; lab.style.color="var(--accent)"; lab.textContent="🏅 AWARDS"; $("results").appendChild(lab);
+  Object.entries(badges).forEach(([n,t])=>{ const d=document.createElement("div"); d.className="entry";
+    d.innerHTML=`<div class="res-top"><span class="nm">${n===me?"YOU":n}</span><span class="pts" style="font-size:9px">${t.join("  ")}</span></div>`; $("results").appendChild(d); }); }
+function finalPhase(m){ show("reveal"); $("revRound").textContent="FINAL RESULTS";
+  const won=m.scores.length && m.scores[0].name===me;
+  $("revBrief").textContent = won ? "🏆 YOU WON THE PARTY!" : "PARTY OVER!";
+  $("results").innerHTML=""; renderAwards(m.badges); renderBoard(m.scores);
+  setAll("still"); if(m.scores.length){ winSettle(m.scores[0].name); }
+  const mine=(m.scores||[]).find(s=>s.name===me); awardXP(mine?mine.score/4:0);
+  splash(won?"YOU WIN!":"GAME OVER", 1500); celebrate();
+}
+function celebrate(){ SFX.win(); document.body.classList.add("shake"); setTimeout(()=>document.body.classList.remove("shake"),460);
+  const cols=[...COLORS,"#fff"];
+  for(let i=0;i<48;i++){ const c=document.createElement("div"); c.className="confetti";
+    c.style.left=Math.random()*100+"vw"; c.style.background=cols[i%cols.length];
+    c.style.animationDuration=(1.6+Math.random()*1.6)+"s"; c.style.animationDelay=(Math.random()*0.4)+"s";
+    document.body.appendChild(c); setTimeout(()=>c.remove(),3600); } }
+
+/* idle liveliness in the lobby */
+setInterval(()=>{ if(curPhase!=="lobby"||!roster.length) return; const r=roster[Math.floor(Math.random()*roster.length)]; oneShot(r.name,"jump"); }, 2600);
+
+$("createBtn").onclick=createParty;
+$("joinBtn").onclick=joinParty;
+$("codeIn").addEventListener("keydown",e=>{ if(e.key==="Enter") joinParty(); });
+$("startBtn").onclick=()=>{ SFX.start(); send({action:"start", seconds:parseInt($("clipLen").value||"8",10), engine:$("engSel").value}); $("lobbyStatus").textContent="starting..."; };
+$("clearP").onclick=()=>{ $("prompt").value=""; SFX.click(); checkBanned(); };
+$("prompt").addEventListener("input", checkBanned);
+$("submitBtn").onclick=()=>{ const p=$("prompt").value.trim(); if(!p){ $("wStatus").textContent="write a prompt first."; return; }
+  if(localHits(p).length){ $("wStatus").textContent="remove the brief's words first."; SFX.buzz(); checkBanned(); return; }
+  send({action:"submit", prompt:p}); $("submitBtn").disabled=true; $("wStatus").textContent="submitting..."; };
+$("muteBtn").onclick=()=>{ const on=SFX.toggle(); $("muteBtn").textContent=on?"SND:ON":"SND:OFF"; SFX.resume(); };
+initReactBar(); showLvl();
+window.addEventListener("beforeunload",()=>{ try{ if(ws){ send({action:"stop"}); ws.close(); } }catch(e){} });
+</script>
+</body>
+</html>

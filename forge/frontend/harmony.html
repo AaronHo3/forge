@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forge · Harmony Sandbox</title>
+<style>
+  :root{ --bg:#0e0f13; --panel:#171922; --panel2:#1f2230; --ink:#e8eaf0; --muted:#9aa0b4;
+         --accent:#60a5fa; --line:#2a2e3e;
+         --tonic:#34d399; --sub:#fbbf24; --dom:#fb7185; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header{ padding:20px 26px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1{ margin:0; font-size:19px; } header h1 span{ color:var(--accent); }
+  header p{ margin:3px 0 0; color:var(--muted); font-size:13px; max-width:680px; }
+  a.navlink{ text-decoration:none; color:var(--muted); font-weight:600; font-size:14px; border:1px solid var(--line); border-radius:12px; padding:9px 14px; }
+  .wrap{ max-width:920px; margin:0 auto; padding:22px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:16px; }
+  .lab{ font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 9px; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  select,button{ font:inherit; }
+  select{ padding:9px 12px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:10px; }
+  button{ padding:11px 16px; border:0; border-radius:11px; cursor:pointer; font-weight:700; color:#06121f; background:var(--accent); }
+  button.ghost{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); }
+  button.on{ background:var(--tonic); color:#04231a; }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .seg{ display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .seg button{ border-radius:0; background:var(--panel2); color:var(--ink); font-weight:600; padding:9px 14px; }
+  .seg button.sel{ background:var(--accent); color:#06121f; }
+  /* chord pads */
+  .pads{ display:grid; grid-template-columns:repeat(7,1fr); gap:10px; }
+  @media(max-width:760px){ .pads{ grid-template-columns:repeat(4,1fr);} }
+  .pad{ background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:16px 8px; text-align:center;
+        cursor:pointer; transition:transform .07s, box-shadow .15s, border-color .15s; user-select:none; }
+  .pad:hover{ transform:translateY(-2px); }
+  .pad .rom{ font:800 22px/1 'JetBrains Mono',ui-monospace,monospace; letter-spacing:.02em; }
+  .pad .nm{ font-size:13px; color:var(--muted); margin-top:5px; }
+  .pad .fn{ font-size:10px; text-transform:uppercase; letter-spacing:.5px; margin-top:8px; opacity:.85; }
+  .pad.tonic{ box-shadow:inset 0 -3px 0 var(--tonic); } .pad.tonic .fn{ color:var(--tonic); }
+  .pad.subdominant{ box-shadow:inset 0 -3px 0 var(--sub); } .pad.subdominant .fn{ color:var(--sub); }
+  .pad.dominant{ box-shadow:inset 0 -3px 0 var(--dom); } .pad.dominant .fn{ color:var(--dom); }
+  .pad.subtonic{ box-shadow:inset 0 -3px 0 var(--accent); } .pad.subtonic .fn{ color:var(--accent); }
+  .pad.active{ border-color:var(--ink); transform:translateY(-2px) scale(1.02); }
+  .pad.active.tonic{ background:color-mix(in srgb,var(--tonic) 16%,var(--panel2)); }
+  .pad.active.subdominant{ background:color-mix(in srgb,var(--sub) 16%,var(--panel2)); }
+  .pad.active.dominant{ background:color-mix(in srgb,var(--dom) 16%,var(--panel2)); }
+  .pad.active.subtonic{ background:color-mix(in srgb,var(--accent) 16%,var(--panel2)); }
+  .now{ margin-top:14px; min-height:22px; font-size:14px; }
+  .now b{ color:var(--ink); } .now .hint{ color:var(--muted); }
+  /* progression */
+  .slots{ display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
+  .slot{ min-width:64px; padding:12px 10px; text-align:center; border:1px dashed var(--line); border-radius:10px; background:var(--panel2);
+         font:700 16px/1 'JetBrains Mono',monospace; color:var(--muted); }
+  .slot.set{ border-style:solid; color:var(--ink); }
+  .slot.playing{ border-color:var(--accent); color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent); }
+  .presets{ display:flex; gap:8px; flex-wrap:wrap; }
+  .presets button{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-weight:600; font-size:13px; padding:8px 12px; }
+  .ctl{ display:flex; align-items:center; gap:10px; }
+  input[type=range]{ width:160px; accent-color:var(--accent); }
+  .status{ color:var(--accent); font-size:13px; min-height:18px; }
+  .muted{ color:var(--muted); font-size:13px; }
+  .hide{ display:none; }
+</style>
+<link rel="stylesheet" href="/app.css" />
+<script src="/jam-client.js" defer></script>
+</head>
+<body class="p-harmony">
+  <header>
+    <div style="flex:1">
+      <h1><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg></span> Harmony Sandbox</h1>
+      <p>Pick a chord. A live AI band arranges itself around it in about a second. You make the harmonic decisions; the band plays them. Hear how chords feel, build progressions, learn harmony with no instrument. Powered by Magenta RT, the model that follows your notes live.</p>
+    </div>
+    <a class="navlink" href="/">← Workbench</a>
+  </header>
+
+  <div class="wrap">
+    <!-- key + transport -->
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div class="row">
+          <div>
+            <div class="lab">Key</div>
+            <div class="row">
+              <select id="root"></select>
+              <div class="seg" id="modeSeg">
+                <button data-mode="major" class="sel">Major</button>
+                <button data-mode="minor">Minor</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <button id="startBtn">▶ Start the band</button>
+          <button id="saveBtn" class="ghost" disabled>Save take</button>
+        </div>
+      </div>
+      <div class="status" id="status" style="margin-top:10px"></div>
+    </div>
+
+    <!-- chord pads -->
+    <div class="card">
+      <div class="lab">Chords in <span id="keyLabel">C major</span> — click to play</div>
+      <div class="pads" id="pads"></div>
+      <div class="now" id="now"><span class="hint">Tap a chord. Green = home (tonic), amber = motion (subdominant), red = pull (dominant).</span></div>
+      <div class="row" style="margin-top:12px">
+        <button id="sev7Btn" class="ghost">Add 7th</button>
+        <button id="freeBtn" class="ghost">Free play (release harmony)</button>
+      </div>
+    </div>
+
+    <!-- progression looper -->
+    <div class="card">
+      <div class="lab">Progression looper — hear how chords pull on each other in a cycle</div>
+      <div class="presets" id="presets"></div>
+      <div class="slots" id="slots"></div>
+      <div class="row" style="justify-content:space-between; margin-top:6px">
+        <div class="ctl"><span class="muted">Chord length</span>
+          <input id="bar" type="range" min="1200" max="4000" step="200" value="2400" />
+          <span class="muted" id="barVal">2.4s</span></div>
+        <div class="row">
+          <button id="loopBtn" disabled>Loop progression</button>
+          <button id="clearProg" class="ghost">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- band controls -->
+    <div class="card">
+      <div class="lab">The band</div>
+      <div class="row" style="gap:24px">
+        <div class="ctl"><span class="muted">Density</span>
+          <input id="density" type="range" min="0" max="1" step="0.05" value="0.5" /></div>
+        <div class="ctl"><span class="muted">Drums</span>
+          <button id="drumsBtn" class="on">On</button></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+let ws=null, player=null, started=false;
+let key=null;                 // current key payload from /api/harmony
+let activeRoot=null, activeQuality=null, sev7=false;
+let prog=[];                  // [{...chord}] progression slots
+let loopTimer=null, loopIdx=0;
+
+function setStatus(t){ $("status").textContent=t||""; }
+
+// ── key fetch + render ────────────────────────────────────────────────────
+async function loadKey(){
+  const root=$("root").value;
+  const mode=document.querySelector("#modeSeg .sel").dataset.mode;
+  const r=await fetch(`/api/harmony?root=${encodeURIComponent(root)}&mode=${mode}`);
+  key=await r.json();
+  $("keyLabel").textContent=key.key_label;
+  renderPads(); renderPresets(); renderSlots();
+}
+function renderPads(){
+  $("pads").innerHTML="";
+  key.chords.forEach(c=>{
+    const d=document.createElement("div");
+    d.className="pad "+c.function.toLowerCase();
+    d.innerHTML=`<div class="rom">${c.roman}</div><div class="nm">${sev7?c.seventh_name:c.name}</div><div class="fn">${c.function}</div>`;
+    d.onclick=()=>playChord(c);
+    d.dataset.deg=c.degree;
+    $("pads").appendChild(d);
+  });
+}
+function renderPresets(){
+  $("presets").innerHTML="";
+  key.progressions.forEach(p=>{
+    const b=document.createElement("button");
+    b.textContent=p.name;
+    b.onclick=()=>{ prog=p.degrees.map(d=>key.chords[d-1]); renderSlots(); $("loopBtn").disabled=!started; };
+    $("presets").appendChild(b);
+  });
+}
+function renderSlots(){
+  $("slots").innerHTML="";
+  if(!prog.length){ $("slots").innerHTML='<span class="muted">Pick a preset above, or your chords land here as you play.</span>'; return; }
+  prog.forEach((c,i)=>{
+    const s=document.createElement("div");
+    s.className="slot set"+(loopTimer&&i===loopIdx?" playing":"");
+    s.textContent=c.roman; s.title=c.name;
+    $("slots").appendChild(s);
+  });
+}
+
+// ── live audio + chord sending ────────────────────────────────────────────
+async function ensureStarted(){
+  if(started) return;
+  started=true;
+  player=JamPlayer(); await player.start();
+  const proto=location.protocol==="https:"?"wss":"ws";
+  ws=new WebSocket(`${proto}://${location.host}/ws/harmony`);
+  ws.binaryType="arraybuffer";
+  ws.onopen=()=>{ ws.send(JSON.stringify({action:"init",
+      density:parseFloat($("density").value), drums:isDrums()})); setStatus("Band warming up..."); };
+  ws.onmessage=(e)=>{ if(typeof e.data!=="string"){ player.feed(e.data); setStatus(""); return; }
+      const m=JSON.parse(e.data); if(m.type==="saved") setStatus("Saved to your Library."); else if(m.type==="error") setStatus(m.error); };
+  ws.onclose=()=>{ setStatus("Disconnected."); started=false; };
+  $("startBtn").textContent="● Live"; $("startBtn").classList.add("on");
+  $("saveBtn").disabled=false; if(prog.length) $("loopBtn").disabled=false;
+}
+function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+function isDrums(){ return $("drumsBtn").classList.contains("on"); }
+
+function qOf(c){ return sev7?c.seventh:c.quality; }
+function nmOf(c){ return sev7?c.seventh_name:c.name; }
+async function playChord(c){
+  await ensureStarted();
+  activeRoot=c.root; activeQuality=qOf(c);
+  send({action:"chord", root:c.root, quality:qOf(c)});
+  highlight(c.degree);
+  $("now").innerHTML=`<b>${nmOf(c)}</b> &nbsp;·&nbsp; ${c.roman} &nbsp;·&nbsp; ${c.function} &nbsp; <span class="hint">${c.hint}</span>`;
+  // a manually played chord (outside the looper) appends to the progression sketch
+  if(!loopTimer){ if(prog.length>=8) prog.shift(); prog.push(c); renderSlots(); $("loopBtn").disabled=false; }
+}
+function highlight(deg){
+  document.querySelectorAll(".pad").forEach(p=>p.classList.toggle("active", +p.dataset.deg===deg));
+}
+async function freePlay(){
+  await ensureStarted();
+  send({action:"free"}); activeRoot=null;
+  document.querySelectorAll(".pad").forEach(p=>p.classList.remove("active"));
+  $("now").innerHTML='<span class="hint">Harmony released. The band plays freely until you pick a chord.</span>';
+}
+
+// ── progression looper ────────────────────────────────────────────────────
+function toggleLoop(){
+  if(loopTimer){ stopLoop(); return; }
+  if(!prog.length) return;
+  ensureStarted();
+  loopIdx=0; stepLoop();
+  loopTimer=setInterval(stepLoop, parseInt($("bar").value,10));
+  $("loopBtn").textContent="Stop loop"; $("loopBtn").classList.add("on");
+}
+function stepLoop(){
+  const c=prog[loopIdx % prog.length];
+  send({action:"chord", root:c.root, quality:qOf(c)});
+  highlight(c.degree);
+  $("now").innerHTML=`<b>${nmOf(c)}</b> &nbsp;·&nbsp; ${c.roman} &nbsp;·&nbsp; ${c.function} &nbsp; <span class="hint">${c.hint}</span>`;
+  loopIdx=(loopIdx+1)%prog.length;
+  renderSlots();
+}
+function stopLoop(){ clearInterval(loopTimer); loopTimer=null; $("loopBtn").textContent="Loop progression"; $("loopBtn").classList.remove("on"); renderSlots(); }
+
+// ── wiring ────────────────────────────────────────────────────────────────
+function initRoots(){
+  ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"].forEach(n=>{
+    const o=document.createElement("option"); o.value=n; o.textContent=n; $("root").appendChild(o); });
+  $("root").value="C";
+}
+$("modeSeg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return;
+  document.querySelectorAll("#modeSeg button").forEach(x=>x.classList.remove("sel")); b.classList.add("sel");
+  stopLoop(); prog=[]; loadKey(); });
+$("root").addEventListener("change",()=>{ stopLoop(); prog=[]; loadKey(); });
+$("startBtn").onclick=ensureStarted;
+$("sev7Btn").onclick=()=>{ sev7=!sev7; $("sev7Btn").classList.toggle("on",sev7); renderPads(); };
+$("freeBtn").onclick=freePlay;
+$("loopBtn").onclick=toggleLoop;
+$("clearProg").onclick=()=>{ stopLoop(); prog=[]; renderSlots(); $("loopBtn").disabled=true; };
+$("saveBtn").onclick=()=>{ send({action:"save"}); setStatus("Saving..."); };
+$("bar").addEventListener("input",()=>{ $("barVal").textContent=(parseInt($("bar").value,10)/1000).toFixed(1)+"s";
+  if(loopTimer){ clearInterval(loopTimer); loopTimer=setInterval(stepLoop, parseInt($("bar").value,10)); } });
+$("density").addEventListener("change",()=>send({action:"control", density:parseFloat($("density").value)}));
+$("drumsBtn").onclick=()=>{ const on=!isDrums(); $("drumsBtn").classList.toggle("on",on); $("drumsBtn").textContent=on?"On":"Off";
+  send({action:"control", drums:on}); };
+window.addEventListener("beforeunload",()=>{ try{ if(ws){ send({action:"stop"}); ws.close(); } }catch(e){} });
+
+initRoots(); loadKey();
+</script>
+</body>
+</html>
