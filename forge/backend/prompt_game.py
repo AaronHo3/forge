@@ -253,7 +253,9 @@ class PromptGameHub:
             await self._broadcast(room, {"type": "vote", "brief": brief, "seconds": VOTE_SECS,
                                          "entries": [{"eid": e["eid"], "clip_url": e["clip_url"]}
                                                      for e in entries]})
-            await self._await_until(room, lambda: len(room.votes) >= len(room.clients), VOTE_SECS)
+            # advance as soon as everyone who CAN vote has voted (you can't vote
+            # your own entry, so eligible = clients with someone else's entry to pick)
+            await self._await_until(room, lambda: len(room.votes) >= self._eligible_voters(room), VOTE_SECS)
 
             self._score_round(room)
             results = sorted(
@@ -332,6 +334,12 @@ class PromptGameHub:
             if st[wins]["round_wins"] >= 2:
                 badges.setdefault(wins, []).append("🔥 On a Roll")
         return badges
+
+    def _eligible_voters(self, room: GameRoom) -> int:
+        """How many players actually have something to vote for (an entry that
+        isn't their own). Voting ends once they've all voted."""
+        owners = {e["name"] for e in room.entries}
+        return sum(1 for c in room.clients if owners - {c})
 
     async def _await_until(self, room: GameRoom, cond, secs: float) -> None:
         deadline = time.monotonic() + secs
