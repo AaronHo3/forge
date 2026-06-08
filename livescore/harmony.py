@@ -46,6 +46,23 @@ def note_to_midi(name: str | None) -> int:
     return midi
 
 
+def split_key(key: str | None) -> tuple[str | None, str]:
+    """Split a key like 'A minor', 'F# major', or 'D' into (root, mode).
+
+    `mode` is 'minor' only when the key explicitly says so (matching build_notes),
+    else 'major'. `root` is the note-name part ('A', 'F#', 'Bb'), or None if there
+    is no parseable root. Used to lock a session ROOT while letting the major/minor
+    MODE follow the story's mood."""
+    if not key:
+        return None, "major"
+    k = key.strip()
+    mode = "minor" if "min" in k.lower() else "major"
+    m = re.match(r"\s*([A-Ga-g])([#b]?)", k)
+    if not m:
+        return None, mode
+    return m.group(1).upper() + m.group(2), mode
+
+
 def build_notes(key: str | None, num_notes: int) -> list[int] | None:
     """Build a `num_notes`-long note-conditioning mask for a musical key, so MRT2
     plays in tune. Soft constraint: in-key pitches stay MASKED (-1, free to play,
@@ -60,8 +77,12 @@ def build_notes(key: str | None, num_notes: int) -> list[int] | None:
         if len(k) > 1 and k[1] in '#b':
             pc += 1 if k[1] == '#' else -1
         pc %= 12
-        # A bare key name (e.g. "C") or anything without "maj" defaults to minor.
-        scale = {(pc + iv) % 12 for iv in (_MAJOR if 'maj' in k.lower() else _MINOR)}
+        # Minor only when the key explicitly says so ("A minor", "min"); a bare
+        # key ("C") or "C major" is major — matching lead-sheet convention and the
+        # preset default_key. The LLM always sends an explicit quality; bare keys
+        # come from speaker signatures (KEYS = ["C","G",...]).
+        is_minor = 'min' in k.lower()
+        scale = {(pc + iv) % 12 for iv in (_MINOR if is_minor else _MAJOR)}
         notes = [-1] * num_notes
         for midi in range(min(128, num_notes)):
             if NOTE_LO <= midi <= NOTE_HI and (midi % 12) not in scale:

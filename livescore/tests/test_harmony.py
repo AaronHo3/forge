@@ -17,6 +17,15 @@ class TestBuildNotes:
         # note masks must be identical.
         assert harmony.build_notes("C major", 128) == harmony.build_notes("A minor", 128)
 
+    def test_bare_key_defaults_to_major(self):
+        # A key with no explicit quality (e.g. a speaker signature of just "C")
+        # is major — same mask as "C major", NOT "C minor".
+        assert harmony.build_notes("C", 128) == harmony.build_notes("C major", 128)
+        assert harmony.build_notes("C", 128) != harmony.build_notes("C minor", 128)
+
+    def test_explicit_minor_still_minor(self):
+        assert harmony.build_notes("C minor", 128) == harmony.build_notes("Eb major", 128)
+
     def test_in_key_pitch_left_free(self):
         assert harmony.build_notes("C major", 128)[48] == -1  # C3 (pc 0) in key
 
@@ -41,6 +50,33 @@ class TestBuildNotes:
 
     def test_none_key_returns_none(self):
         assert harmony.build_notes(None, 128) is None
+
+
+@pytest.mark.unit
+class TestSplitKey:
+    def test_splits_root_and_mode(self):
+        assert harmony.split_key("A minor") == ("A", "minor")
+        assert harmony.split_key("C major") == ("C", "major")
+        assert harmony.split_key("F# minor") == ("F#", "minor")
+        assert harmony.split_key("Bb major") == ("Bb", "major")
+
+    def test_bare_key_is_major(self):
+        assert harmony.split_key("D") == ("D", "major")
+
+    def test_none_and_empty(self):
+        assert harmony.split_key(None) == (None, "major")
+        assert harmony.split_key("") == (None, "major")
+
+    def test_unparseable_root_keeps_mode(self):
+        # No note letter, but the mode word is still honoured.
+        assert harmony.split_key("something minor") == (None, "minor")
+
+    def test_root_locked_mode_flip_builds_relative_scales(self):
+        # The whole point: same root, mode flip → the two scales build different
+        # masks (D major vs D minor differ on the 3rd/6th/7th).
+        d_major = harmony.build_notes("D major", 128)
+        d_minor = harmony.build_notes("D minor", 128)
+        assert d_major != d_minor
 
     def test_sharp_key_builds_correct_mask(self):
         # F# minor pitch classes: {6, 8, 9, 11, 1, 2, 4}. Spot-check the sharp
