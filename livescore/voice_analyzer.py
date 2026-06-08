@@ -72,8 +72,12 @@ class VoiceAnalyzer:
         self._running = False
         self._stream = None
         self._thread = None
-        # Rolling raw audio for Whisper transcription (50 blocks ≈ 5 seconds)
+        # Rolling raw audio for Whisper transcription (50 blocks ≈ 5 seconds).
+        # _raw_lock guards it: the mic thread appends while the LLM thread
+        # snapshots, and `list(deque)` during a concurrent append raises
+        # "deque mutated during iteration" in CPython without it.
         self._raw_blocks: deque = deque(maxlen=50)
+        self._raw_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Public API
@@ -119,10 +123,17 @@ class VoiceAnalyzer:
     # Internal
     # ------------------------------------------------------------------
 
+    def _append_raw(self, block: np.ndarray) -> None:
+        """Append a raw audio block under the lock, so a concurrent snapshot in
+        get_audio_for_transcription never iterates the deque mid-mutation."""
+        with self._raw_lock:
+            self._raw_blocks.append(block)
+
     def get_audio_for_transcription(self, seconds: float = 4.0) -> np.ndarray:
         """Return the last `seconds` of raw mono 48kHz audio for Whisper."""
         n_blocks = int(seconds * 10)  # 10 blocks per second at 100ms each
-        blocks = list(self._raw_blocks)[-n_blocks:]
+        with self._raw_lock:
+            blocks = list(self._raw_blocks)[-n_blocks:]
         if not blocks:
             return np.zeros(0, dtype=np.float32)
         return np.concatenate(blocks)
@@ -132,7 +143,7 @@ class VoiceAnalyzer:
         if status:
             print(f"[VoiceAnalyzer] sounddevice status: {status}")
         block = indata[:, 0].copy()
-        self._raw_blocks.append(block)  # deque.append is thread-safe
+        self._append_raw(block)   # locked: safe against concurrent snapshots
         try:
             self._queue.put_nowait(block)
         except queue.Full:

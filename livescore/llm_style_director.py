@@ -151,6 +151,11 @@ class LLMStyleDirector:
     MIN_WORDS        = 3        # ignore one/two-word fragments
     DIRECTOR_INTERVAL = 4.0     # min seconds between Claude calls (NOT listening)
     CONTEXT_SNIPPETS  = 3       # recent transcripts kept as narrative context
+    # Circuit breaker: after this many CONSECUTIVE call failures, stop calling
+    # Claude for CIRCUIT_COOLDOWN seconds, so a dead API (bad key, outage) is not
+    # hammered every DIRECTOR_INTERVAL. The music keeps playing on the last style.
+    CIRCUIT_THRESHOLD = 3
+    CIRCUIT_COOLDOWN  = 30.0
 
     def __init__(self, analyzer, controller, *, transcribe_interval=None,
                  audio_window=None, cooldown=None, style_hint="", telemetry=None,
@@ -168,6 +173,8 @@ class LLMStyleDirector:
         self._active      = False
         self.last_status  = "idle"   # shown in display for visibility
         self._last_call   = 0.0      # monotonic time of last Claude call
+        self._consecutive_failures = 0    # circuit-breaker failure counter
+        self._circuit_open_until   = 0.0  # monotonic; > now means breaker is open
         self._recent      = deque(maxlen=self.CONTEXT_SNIPPETS)  # rolling context
         self._recent_scenes = deque(maxlen=4)   # recent style pairs → avoid repeats
         self._mute_event  = threading.Event()   # set = ignore the mic
@@ -342,6 +349,26 @@ class LLMStyleDirector:
         probs = [s.get('no_speech_prob', 0.0) for s in segments]
         return (sum(probs) / len(probs)) > self.NO_SPEECH_MAX
 
+    def _circuit_open(self) -> bool:
+        """True while the breaker is tripped — skip Claude, hold current music."""
+        return time.monotonic() < self._circuit_open_until
+
+    def _record_call_success(self) -> None:
+        """A Claude call returned — reset the breaker."""
+        self._consecutive_failures = 0
+        self._circuit_open_until = 0.0
+
+    def _record_call_failure(self) -> None:
+        """A Claude call failed — trip the breaker after enough failures in a row."""
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self.CIRCUIT_THRESHOLD:
+            self._circuit_open_until = time.monotonic() + self.CIRCUIT_COOLDOWN
+            print(f"[LLM] circuit OPEN — {self._consecutive_failures} consecutive "
+                  f"failures; pausing Claude for {self.CIRCUIT_COOLDOWN:.0f}s")
+            # Reset so that AFTER the cooldown the API gets a fresh CIRCUIT_THRESHOLD
+            # attempts before tripping again (no instant re-trip on one failure).
+            self._consecutive_failures = 0
+
     def _process_text(self, text: str, force: bool = False):
         """Send text to Claude and apply new style poles — unless Claude judges
         the scene unchanged. `force=True` (manual `t` inject) always changes.
@@ -356,6 +383,13 @@ class LLMStyleDirector:
                 return
             self._client = anthropic.Anthropic(api_key=api_key)
             client = self._client
+
+        # Circuit breaker: if Claude has been failing, skip the call entirely and
+        # hold the current music until the cooldown elapses (don't spam a dead API).
+        # A manual operator inject (force=True) always tries — operator intent wins.
+        if not force and self._circuit_open():
+            self.last_status = "API paused (circuit open)"
+            return
 
         # Build the request. Forced injects always produce a fresh pair; voice
         # narration includes the current music so Claude can decide keep vs change.
@@ -401,6 +435,7 @@ class LLMStyleDirector:
                 ],
             )
             claude_ms = (time.monotonic() - t0) * 1000.0
+            self._record_call_success()   # the API call itself succeeded
             raw  = prefill + resp.content[0].text
             data = _extract_json(raw)
 
@@ -442,8 +477,10 @@ class LLMStyleDirector:
                 self.last_status = f"bad JSON: {raw[:60]}"
                 print(f"[LLM] bad JSON from Claude ({e}): {raw[:120]}")
             else:                         # the call itself failed (e.g. bad API key)
+                self._record_call_failure()
                 self.last_status = f"call failed: {e}"
                 print(f"[LLM] Claude call failed (check ANTHROPIC_API_KEY): {e}")
         except Exception as e:
+            self._record_call_failure()
             self.last_status = f"ERR: {e}"
             print(f"[LLM] API error: {e}")

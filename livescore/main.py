@@ -94,8 +94,18 @@ def main():
     preset = get_preset(args.preset)
     print(f"\n🎙  Score the Story — {args.mode.upper()} mode · preset: {preset.name}\n")
 
+    # ── Telemetry first, so a port failure degrades to None BEFORE the
+    #    components capture it (otherwise they'd hold a half-started server). ──
+    telemetry = None if args.no_dashboard else Telemetry(port=args.port)
+    if telemetry:
+        try:
+            telemetry.start()
+        except Exception as e:
+            print(f"⚠  Telemetry dashboard unavailable (port {args.port}): {e}")
+            print("   Continuing without the live dashboard.")
+            telemetry = None
+
     # ── Init components (all tuned by the chosen preset) ───────────────
-    telemetry  = None if args.no_dashboard else Telemetry(port=args.port)
     analyzer   = VoiceAnalyzer()
     mapper     = FeatureMapper(smoothing=preset.smoothing,
                                drums_threshold=preset.drums_threshold)
@@ -114,12 +124,15 @@ def main():
                                    session_log=session_log)
                   if args.mode == "python" else None)
 
-    analyzer.start()
+    try:
+        analyzer.start()      # opens the mic — the most likely live failure
+    except Exception as e:
+        print(f"\n✗ Could not open the microphone: {e}")
+        print("  Check a mic is connected and this app has mic permission, then retry.")
+        return
     controller.start()
     if detector:
         detector.start()
-    if telemetry:
-        telemetry.start()
 
     # ── Control loop (runs at UPDATE_HZ, silent) ──────────────────────
     stop_event = threading.Event()

@@ -277,8 +277,10 @@ class PythonMRTController:
     def __init__(self, morph_step: float = 0.30,
                  default_a: str | None = None, default_b: str | None = None,
                  default_key: str | None = None, telemetry=None,
-                 backend_factory: Callable[[], object] | None = None):
+                 backend_factory: Callable[[], object] | None = None,
+                 enable_drums: bool = False):
         self._telemetry = telemetry
+        self._enable_drums = enable_drums   # opt-in; drums default OFF (see _gen_chunk)
         # The MRT2 backend is created lazily on the audio thread via this factory,
         # so tests can inject a fake (or a deliberately failing) one without
         # loading the real model or opening an audio device.
@@ -384,9 +386,11 @@ class PythonMRTController:
     def _gen_chunk(self, mrt, style, params, state, np, notes=None):
         """Generate one ~1s chunk and update the rolling gen-time average."""
         cfg   = self.CFG_BASE + params.chaos * self.CFG_SPAN   # capped, musical
-        # Drums forced OFF for now — the auto-threshold kept flipping them on/off
-        # mid-telling, which was distracting. Restore `params.drums_on` to re-enable.
-        drums = [0]
+        # Drums are opt-in. The mapper's auto-threshold can flip them on/off
+        # mid-telling, which is distracting for storytelling, so they default OFF.
+        # When enable_drums is set, the mapper's drums_threshold actually drives
+        # them — no more silently-dead config.
+        drums = [1] if (self._enable_drums and params.drums_on) else [0]
         tg = time.monotonic()
         wav, state = mrt.generate(style=style, notes=notes, drums=drums,
                                   cfg_musiccoca=cfg, frames=self.CHUNK_FRAMES,
@@ -761,11 +765,13 @@ class MRTController:
 
     def __init__(self, mode: str = "midi", *, morph_step: float = 0.30,
                  default_a: str | None = None, default_b: str | None = None,
-                 default_key: str | None = None, telemetry=None):
+                 default_key: str | None = None, telemetry=None,
+                 enable_drums: bool = False):
         if mode == "python":
             self._impl = PythonMRTController(
                 morph_step=morph_step, default_a=default_a, default_b=default_b,
                 default_key=default_key, telemetry=telemetry,
+                enable_drums=enable_drums,
             )
         else:
             self._impl = MIDIMRTController()
