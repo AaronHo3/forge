@@ -22,6 +22,7 @@ NOTE ── MIDI CC mapping used here:
 These are conventional assignments but can be remapped in MRT2's AU UI.
 """
 
+import re
 import threading
 import time
 import numpy as np
@@ -137,19 +138,31 @@ class MIDIMRTController:
             self._send_note_off(n)
         self._active_notes = []
 
-    @staticmethod
-    def _note_to_midi(name: str) -> int:
-        """Convert note name like 'C3' or 'F#4' to MIDI number."""
-        notes = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
-        name = name.strip().upper()
-        # Handle sharps/flats
-        if len(name) == 3:
-            pitch, accidental, octave = name[0], name[1], int(name[2])
-            semitone = notes[pitch] + (1 if accidental == "#" else -1)
-        else:
-            pitch, octave = name[0], int(name[1])
-            semitone = notes[pitch]
-        return (octave + 1) * 12 + semitone
+    # Note name: a letter A-G, an optional accidental (# sharp, b flat), then a
+    # possibly-multi-digit, possibly-negative octave. e.g. C3, F#4, Db3, C-1.
+    # \A and \Z anchor a full-string match so stray text can never slip through.
+    _NOTE_RE = re.compile(r"\A\s*([A-Ga-g])([#b]?)(-?\d+)\s*\Z")
+
+    @classmethod
+    def _note_to_midi(cls, name: str | None) -> int:
+        """Convert a note name like 'C3', 'F#4', or 'Db3' to its MIDI number
+        (C4 = 60, A4 = 69). Sharps use '#', flats use lowercase 'b'. Octaves may
+        be multi-digit or negative. Raises ValueError on an unrecognised name or
+        a note outside the valid MIDI range (0-127)."""
+        semitones = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+        m = cls._NOTE_RE.match(name or "")
+        if not m:
+            raise ValueError(f"unrecognised note name: {name!r}")
+        pitch, accidental, octave = m.group(1).upper(), m.group(2), int(m.group(3))
+        semitone = semitones[pitch]
+        if accidental == "#":
+            semitone += 1
+        elif accidental == "b":
+            semitone -= 1
+        midi = (octave + 1) * 12 + semitone
+        if not 0 <= midi <= 127:
+            raise ValueError(f"note {name!r} is outside the MIDI range (0-127)")
+        return midi
 
 
 # ══════════════════════════════════════════════════════════════════════

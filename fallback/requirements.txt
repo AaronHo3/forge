@@ -1,24 +1,25 @@
 # Score the Story — Python dependencies
 # Install with: pip install -r requirements.txt
 
-# Audio capture (cross-platform, wraps PortAudio)
-sounddevice>=0.4.6
-
-# Audio feature extraction
-librosa>=0.10.0
+# ── Core audio pipeline (always required) ──────────────────────────────
+sounddevice>=0.4.6      # mic capture + speaker output (wraps PortAudio)
+librosa>=0.10.0         # voice feature extraction (pitch, onset, centroid)
 numpy>=1.24.0
-scipy>=1.11.0
+scipy>=1.11.0           # real-time DSP filters in the audio callback
 
-# MIDI output (for MIDI mode — controls MRT2 AU from a DAW)
+# ── Native real-time generation (the primary "python" mode) ────────────
+# Magenta RealTime 2 via its MLX backend runs the model locally on Apple
+# Silicon. This is the confirmed real-time path the app actually uses.
+magenta-rt>=2.0.0
+mlx>=0.29.4
+
+# ── Semantic steering (optional "what they said" rail) ─────────────────
+# Whisper transcribes narration; Claude maps it to musical style poles.
+# The app degrades gracefully (music keeps playing) if these are absent
+# or ANTHROPIC_API_KEY is unset.
+openai-whisper>=20231117
+anthropic>=0.40.0
+
+# ── MIDI mode (legacy: drive the MRT2 AU plugin in a DAW) ───────────────
+# Only needed for `--mode midi`. Not required for the native path above.
 python-rtmidi>=1.5.0
-
-# MRT2 Python library (for Python mode — direct generation)
-# The hackathon team may provide a specific version or wheel.
-# Try: pip install magenta-rt
-# magenta-rt
-
-# Optional: faster pitch detection (if librosa.pyin is too slow)
-# crepe
-
-# Optional: semantic steering via speech-to-text
-# openai-whisper
