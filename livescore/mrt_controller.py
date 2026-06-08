@@ -24,7 +24,7 @@ These are conventional assignments but can be remapped in MRT2's AU UI.
 
 import threading
 import time
-from typing import Callable, TypedDict
+from typing import Callable, Protocol, TypedDict
 
 import numpy as np
 
@@ -159,7 +159,32 @@ class MIDIMRTController:
 #  APPROACH B — Python Library (magenta-rt)
 # ══════════════════════════════════════════════════════════════════════
 
-def _default_backend() -> object:
+class MRTBackend(Protocol):
+    """The slice of the Magenta RealTime system the live loop depends on. The
+    real implementation is MagentaRT2SystemMlxfn; tests inject a fake so the
+    loop can run with no model. `embed_style` turns a prompt into a style
+    vector; `generate` produces one audio chunk plus the rolling state to
+    thread into the next call."""
+    # Underscore-named to MATCH the third-party backend's attribute exactly
+    # (MagentaRT2SystemMlxfn exposes `_num_notes`); it's the note-mask width.
+    _num_notes: int
+
+    def embed_style(self, text_or_audio, **kwargs) -> np.ndarray: ...
+
+    def generate(self, *, style=None, notes=None, drums=None,
+                 cfg_musiccoca=None, frames: int = 25, state=None,
+                 temperature=None, top_k=None) -> tuple: ...
+
+
+class OutputStreamLike(Protocol):
+    """The audio output stream the loop drives. sounddevice.OutputStream
+    satisfies it; a fake implements these no-ops for headless tests."""
+    def start(self) -> None: ...
+    def stop(self) -> None: ...
+    def close(self) -> None: ...
+
+
+def _default_backend() -> MRTBackend:
     """Create the real MRT2 MLX backend. Imported lazily and run on the audio
     thread (all MLX work must stay on one thread)."""
     from magenta_rt.mlx.system import MagentaRT2SystemMlxfn
@@ -250,10 +275,14 @@ class PythonMRTController:
     def __init__(self, morph_step: float = 0.30,
                  default_a: str | None = None, default_b: str | None = None,
                  default_key: str | None = None, telemetry=None,
-                 backend_factory: Callable[[], object] | None = None,
-                 enable_drums: bool = False):
+                 backend_factory: Callable[[], MRTBackend] | None = None,
+                 enable_drums: bool = False,
+                 output_factory: Callable[..., OutputStreamLike] | None = None):
         self._telemetry = telemetry
         self._enable_drums = enable_drums   # opt-in; drums default OFF (see _gen_chunk)
+        # Output-stream seam: None -> a real sounddevice OutputStream. Tests inject
+        # a fake so the generation loop can run with no audio device.
+        self._output_factory = output_factory
         # The MRT2 backend is created lazily on the audio thread via this factory,
         # so tests can inject a fake (or a deliberately failing) one without
         # loading the real model or opening an audio device.
@@ -436,7 +465,10 @@ class PythonMRTController:
                 self._out_rms = float(np.sqrt(np.mean(mono ** 2)))
                 self._out_block = mono
 
-        stream = sd.OutputStream(
+        # Factory defaults to the real device; tests inject a fake. Both get the
+        # identical kwargs, so the production path is byte-for-byte unchanged.
+        make_stream = self._output_factory or sd.OutputStream
+        stream = make_stream(
             samplerate=self.SAMPLE_RATE, channels=2, dtype='float32',
             callback=_callback, latency='high',
         )
