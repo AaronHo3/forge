@@ -28,30 +28,45 @@ Microphone → VoiceAnalyzer → FeatureMapper → MRTController → MRT2 → Sp
 2. **FeatureMapper** (`feature_mapper.py`) — maps those features to MRT2 params with exponential smoothing:
    prompt_blend (0=dark/tense, 1=warm/bright), chaos (0=sparse, 1=dense), drums_on (bool)
 3. **MRTController** (`mrt_controller.py`) — two modes:
-   - MIDI mode (default): sends CC1/CC11/CC64 to MRT2 AU via virtual MIDI port (IAC Driver)
-   - Python mode: uses `magenta-rt` library directly (needs `pip install magenta-rt`)
-4. **main.py** — orchestrates all three with threading, terminal display, keyboard chord input
+   - **Native / Python mode (PRIMARY, the working real-time path)**: runs MRT2 in-process
+     via its MLX backend (`MagentaRT2SystemMlxfn`, `mrt2_base`). The voice blend interpolates
+     between two style embeddings each ~0.8s chunk; audio streams straight to the speakers.
+     Confirmed real-time on Apple Silicon (RTF ~0.76, 0 underruns).
+   - MIDI mode (LEGACY): sends CC1/CC11/CC64 to the MRT2 AU plugin in a DAW via a virtual
+     MIDI port. Kept as a fallback; not the path the project actually uses now.
+4. **main.py** — orchestrates all three with threading, terminal display, keyboard chord input.
+   `--mode python` selects the native path above; plain `main.py` still defaults to legacy MIDI.
 
 ## Current status
-- `voice_analyzer.py` ✅ working — mic capture and feature extraction confirmed
-- `feature_mapper.py` ✅ written — not yet tested end-to-end
-- `mrt_controller.py` ✅ written — MIDI and Python library modes
-- `main.py` ✅ written — needs MIDI setup or Python library to run fully
+The native MLX pipeline runs end-to-end in real time. A pytest suite now covers the
+deterministic core (`cd fallback && python3 -m pytest`).
+- `voice_analyzer.py` ✅ mic capture + feature extraction (unit-tested on synthetic buffers)
+- `feature_mapper.py` ✅ voice→param mapping (unit-tested)
+- `mrt_controller.py` ✅ native MLX path confirmed real-time; MIDI path is legacy
+- `llm_style_director.py` ✅ optional semantic rail (Whisper→Claude); decoupled, degrades gracefully
+- `speaker_signature.py`, `keepsake.py`, `paths.py` ✅ unit-tested
+- Robustness initiative in progress — see the `fallback-robustness` memory for the full roadmap.
 
-## Next steps
-1. Test feature mapper: `python feature_mapper.py` (no MRT2 needed — uses simulated input)
-2. Set up MIDI bridge: Audio MIDI Setup → MIDI Studio → create IAC Driver bus named "MRT2 Control"
-3. Load MRT2 AU in a DAW (GarageBand/Logic/Ableton), set MIDI input to "MRT2 Control", sample rate 48kHz
-4. Run: `python main.py` and start talking
+Known issue: drums are currently forced OFF in the live engine (`mrt_controller.py` sends
+`drums=[0]`), so preset `drums_threshold` values have no live effect yet.
+
+## Next steps (robustness)
+1. Phase 2 resilience: surface engine health — the generation thread can currently die
+   silently and still look "running"; also wrap `OutputStream.start` in try/except.
+2. Phase 3 seams: inject an `MRTBackend` protocol + a fake backend so the audio loop is
+   testable; extract `harmony.py`/`dsp.py`/`config.py` to kill live↔keepsake tunable drift.
+3. Decide drums: restore `params.drums_on` or remove the dead `drums_threshold` config.
+4. Phase 4 observability: logging instead of print; engine health on the telemetry dashboard.
 
 ## MRT2 specifics
-- MRT2 AU plugin is at: `~/Desktop/MusicHack/MRT2 Bundle/AudioUnit/MRT2 (AU).app`
-- Must install to /Applications before first use (see INSTALL.md in that folder)
-- Sample rate MUST be 48,000 Hz — other rates cause pitch distortion
-- AU exposes: `prompts`, `promptSurfaceState`, `_midiNotes`, `parameterTree`
-- MIDI CC mapping in use: CC1=blend, CC11=chaos, CC64=drums
-- Python library: `pip install magenta-rt` — class may be `system.MagentaRT` or `system.MagentaRT2`
-  → verify with Magenta team at hackathon
+- **Native (primary): the `magenta-rt` MLX backend.** Weights live under
+  `~/Documents/Magenta/magenta-rt-v2/models/mrt2_base/` (the `.mlxfn` export). The engine is
+  `magenta_rt.mlx.system.MagentaRT2SystemMlxfn(size='mrt2_base')`; key methods are
+  `embed_style(text) -> ndarray` and `generate(style=..., notes=..., frames=..., state=...)`.
+  Runs at 25 frames/sec (50 frames = 2s). Real-time on the M4 Pro.
+- Sample rate is 48,000 Hz throughout (matches MRT2's requirement).
+- **MIDI / AU (legacy):** MRT2 AU plugin at `~/Desktop/MusicHack/MRT2 Bundle/AudioUnit/`.
+  MIDI CC mapping: CC1=blend, CC11=chaos, CC64=drums. Only used by `--mode midi`.
 
 ## Key design decisions
 - 48kHz sample rate throughout (matches MRT2 requirement)
@@ -63,15 +78,19 @@ Microphone → VoiceAnalyzer → FeatureMapper → MRTController → MRT2 → Sp
 
 ## Dependencies
 ```
-sounddevice, librosa, numpy, scipy   # audio pipeline (all working)
-python-rtmidi                         # MIDI mode
-magenta-rt                            # Python library mode
+sounddevice, librosa, numpy, scipy    # core audio pipeline
+magenta-rt, mlx                       # native real-time generation (primary)
+openai-whisper, anthropic             # optional semantic steering (Whisper→Claude)
+python-rtmidi                         # legacy MIDI mode only
 ```
+Install everything with `cd fallback && pip install -r requirements.txt`
+(dev/test extras: `pip install -r requirements-dev.txt`).
 
 ## Running individual components
 ```bash
-python voice_analyzer.py   # live mic test — confirmed working
-python feature_mapper.py   # simulated arc test — no hardware needed
-python main.py             # full pipeline (needs MIDI or magenta-rt)
-python main.py --mode python  # Python library mode
+python3 main.py --mode python   # PRIMARY: native real-time pipeline — start talking
+python3 spike_mlx_realtime.py   # standalone proof MRT2 streams in real time + timing chart
+python3 -m pytest               # the unit-test suite (no hardware needed)
+python3 voice_analyzer.py       # live mic feature test
+python3 main.py                 # legacy MIDI mode (needs a DAW + IAC bus)
 ```
