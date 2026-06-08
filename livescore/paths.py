@@ -27,8 +27,9 @@ SONGS = os.path.join(OUTPUTS, "songs")
 KEEPSAKES = os.path.join(OUTPUTS, "keepsakes")
 ARRANGEMENTS = os.path.join(OUTPUTS, "arrangements")
 TELEMETRY = os.path.join(OUTPUTS, "telemetry")
+ANALYSIS = os.path.join(OUTPUTS, "analysis")   # style-space maps, embeddings cache
 
-for _d in (SONGS, KEEPSAKES, ARRANGEMENTS, TELEMETRY):
+for _d in (SONGS, KEEPSAKES, ARRANGEMENTS, TELEMETRY, ANALYSIS):
     os.makedirs(_d, exist_ok=True)
 
 
@@ -54,6 +55,11 @@ def arrangement_for(keepsake: str) -> str:
     if swapped == b:                       # no prefix to swap
         swapped = b.replace(".json", ".arrangement.json")
     return os.path.join(ARRANGEMENTS, swapped)
+
+
+def analysis_path(name: str) -> str:
+    """Absolute path under outputs/analysis/ (style-space maps + embed cache)."""
+    return os.path.join(ANALYSIS, os.path.basename(name))
 
 
 def summary_for(keepsake: str) -> str:
