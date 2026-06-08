@@ -22,12 +22,15 @@ NOTE ── MIDI CC mapping used here:
 These are conventional assignments but can be remapped in MRT2's AU UI.
 """
 
-import re
 import threading
 import time
 from typing import Callable, TypedDict
 
 import numpy as np
+
+import config
+import dsp
+import harmony
 from feature_mapper import MRTParams
 
 
@@ -123,7 +126,7 @@ class MIDIMRTController:
             return
         self._release_all()
         for note_name in notes:
-            midi_note = self._note_to_midi(note_name)
+            midi_note = harmony.note_to_midi(note_name)
             self._send_note_on(midi_note, velocity)
             self._active_notes.append(midi_note)
 
@@ -149,31 +152,7 @@ class MIDIMRTController:
             self._send_note_off(n)
         self._active_notes = []
 
-    # Note name: a letter A-G, an optional accidental (# sharp, b flat), then a
-    # possibly-multi-digit, possibly-negative octave. e.g. C3, F#4, Db3, C-1.
-    # \A and \Z anchor a full-string match so stray text can never slip through.
-    _NOTE_RE = re.compile(r"\A\s*([A-Ga-g])([#b]?)(-?\d+)\s*\Z")
-
-    @classmethod
-    def _note_to_midi(cls, name: str | None) -> int:
-        """Convert a note name like 'C3', 'F#4', or 'Db3' to its MIDI number
-        (C4 = 60, A4 = 69). Sharps use '#', flats use lowercase 'b'. Octaves may
-        be multi-digit or negative. Raises ValueError on an unrecognised name or
-        a note outside the valid MIDI range (0-127)."""
-        semitones = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
-        m = cls._NOTE_RE.match(name or "")
-        if not m:
-            raise ValueError(f"unrecognised note name: {name!r}")
-        pitch, accidental, octave = m.group(1).upper(), m.group(2), int(m.group(3))
-        semitone = semitones[pitch]
-        if accidental == "#":
-            semitone += 1
-        elif accidental == "b":
-            semitone -= 1
-        midi = (octave + 1) * 12 + semitone
-        if not 0 <= midi <= 127:
-            raise ValueError(f"note {name!r} is outside the MIDI range (0-127)")
-        return midi
+    # Note-name parsing lives in harmony.note_to_midi (shared module).
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -201,11 +180,11 @@ class PythonMRTController:
 
     PROMPT_A = "dark ambient electronic drone, minimal, atmospheric"
     PROMPT_B = "warm lo-fi hip hop beat, chill, gentle piano"
-    SAMPLE_RATE = 48_000
+    SAMPLE_RATE = config.SAMPLE_RATE
 
     # Classifier-free guidance for the style embedding. Too high (>~3.5) makes
     # MRT2 over-saturate into harsh, noisy, distorted audio. Keep it musical.
-    CFG_BASE = 2.0          # guidance FLOOR — high enough that quiet/paused
+    CFG_BASE = config.STYLE_CFG  # guidance FLOOR — high enough that quiet/paused
                             # passages stay ON-STYLE and don't drift to silence
                             # (matches the keepsake's known-good CFG). This is the
                             # main lever against the "fades when I speak softly" decay.
@@ -214,18 +193,12 @@ class PythonMRTController:
     # MRT2 defaults (temp 1.3, top_k 40) sample "hot" → wandering, noisy output.
     # Lower = more coherent and musical. These are the single biggest sound
     # quality lever short of harmony conditioning.
-    TEMPERATURE = 1.0
+    TEMPERATURE = config.TEMPERATURE
     TOP_K = 32              # a little more variety than 24 → less likely to
                            # collapse into the silent attractor when energy is low
 
-    # Harmony conditioning: scale tones fed to MRT2's `notes` channel so the
-    # music stays in key. Pitches 36–84 (a musical mid-range) get the scale;
-    # in-range non-scale pitches are turned off; the rest are masked.
-    _PC     = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
-    _MINOR  = (0, 2, 3, 5, 7, 8, 10)
-    _MAJOR  = (0, 2, 4, 5, 7, 9, 11)
-    NOTE_LO = 36
-    NOTE_HI = 84
+    # Harmony note-mask logic (key -> MRT2 notes) lives in harmony.py, shared
+    # with the keepsake renderer so the two never drift out of tune.
 
     TARGET_RMS   = 0.14     # loudness-normalise so all scenes sit at the SAME
                             # perceived level — no jarring jumps between scenes.
@@ -246,8 +219,8 @@ class PythonMRTController:
     # If the RAW generated level stays below DECAY_RMS for DECAY_CHUNKS in a row,
     # we re-seed the state (generate the next chunk fresh from the current style)
     # so the music re-energises instead of fading out over a long telling.
-    DECAY_RMS    = 0.015    # raw chunk RMS below this = "dying", not a soft passage
-    DECAY_CHUNKS = 5        # ~4s of sustained near-silence before we re-seed
+    DECAY_RMS    = config.DECAY_RMS     # below this = "dying", not a soft passage
+    DECAY_CHUNKS = config.DECAY_CHUNKS  # ~4s of near-silence before we re-seed
 
     # Continuous (Collider-style) generation: keep generating forever, threading
     # MRT2's state so the music evolves and never repeats. Scene changes swap the
@@ -356,33 +329,6 @@ class PythonMRTController:
             with self._lock:
                 self._pending_key = key
 
-    def _build_notes(self, key: str | None, num_notes: int):
-        """Build a 128-pitch notes-conditioning list for a musical key, so MRT2
-        plays in tune. Returns None on any problem (falls back to no harmony)."""
-        if not key:
-            return None
-        try:
-            k = key.strip()
-            pc = self._PC[k[0].upper()]
-            i = 1
-            if len(k) > 1 and k[1] in '#b':
-                pc += 1 if k[1] == '#' else -1
-                i = 2
-            pc %= 12
-            mode = self._MAJOR if 'maj' in k.lower() else self._MINOR
-            scale = {(pc + iv) % 12 for iv in mode}
-            # Soft key constraint: leave in-key pitches MASKED (-1, model plays
-            # them freely → movement/arpeggios) and only turn OFF (0) the
-            # out-of-key pitches. NEVER force pitches ON — that holds a static
-            # chord. This keeps the music in key but free to evolve.
-            notes = [-1] * num_notes
-            for midi in range(min(128, num_notes)):
-                if self.NOTE_LO <= midi <= self.NOTE_HI and (midi % 12) not in scale:
-                    notes[midi] = 0
-            return notes
-        except Exception:
-            return None
-
     def _gen_chunk(self, mrt, style, params, state, np, notes=None):
         """Generate one ~1s chunk and update the rolling gen-time average."""
         cfg   = self.CFG_BASE + params.chaos * self.CFG_SPAN   # capped, musical
@@ -401,18 +347,6 @@ class PythonMRTController:
                             if self._gen_avg_ms else gen_ms)
         self._last_chunk_time = time.monotonic()   # heartbeat for health()
         return np.ascontiguousarray(wav.samples), state
-
-    def _soft_limit(self, x, np):
-        """Soft-knee limiter: linear below LIMIT_THRESH, tanh-compressed above,
-        so loud transients are smoothly tamed instead of clipping harshly."""
-        th = self.LIMIT_THRESH
-        a = np.abs(x)
-        over = a > th
-        if over.any():
-            x = x.copy()
-            x[over] = np.sign(x[over]) * (
-                th + (1.0 - th) * np.tanh((a[over] - th) / (1.0 - th)))
-        return x
 
     def _read_stream(self, buf, pos, n, np):
         """Read n frames from the growing stream buffer; if generation hasn't
@@ -496,7 +430,7 @@ class PythonMRTController:
                 r, self._zi1 = lfilter(b, a, out[:, 1], zi=self._zi1)
                 gain = 0.8 + 0.2 * chaos
                 mixed = np.stack([l, r], axis=1).astype(np.float32) * gain
-                mixed = self._soft_limit(mixed, np)   # tame transient spikes
+                mixed = dsp.soft_limit(mixed, self.LIMIT_THRESH)  # tame transient spikes
                 outdata[:] = mixed
                 mono = mixed.mean(axis=1)
                 self._out_rms = float(np.sqrt(np.mean(mono ** 2)))
@@ -524,7 +458,7 @@ class PythonMRTController:
         # Harmony present from the FIRST chunk if a session key is locked, so the
         # note constraint never switches on mid-stream (the first-scene-change
         # stutter). None → free, exactly like before, until Claude sets a key.
-        cur_notes = self._build_notes(self._session_key, mrt._num_notes)
+        cur_notes = harmony.build_notes(self._session_key, mrt._num_notes)
         state     = None
 
         def _blend(pa, pb, t):
@@ -604,10 +538,10 @@ class PythonMRTController:
                     self._pending_key = None
                 if pend_key:
                     self._session_key = pend_key
-                    cur_notes = self._build_notes(self._session_key, mrt._num_notes)
+                    cur_notes = harmony.build_notes(self._session_key, mrt._num_notes)
                 elif self._session_key is None and key:
                     self._session_key = key
-                    cur_notes = self._build_notes(self._session_key, mrt._num_notes)
+                    cur_notes = harmony.build_notes(self._session_key, mrt._num_notes)
                 # New target — but DON'T snap scene_style. It glides there over the
                 # next few chunks, so the transition is a smooth morph, not a cut.
                 target_style = _target(float(params.prompt_blend))

@@ -30,51 +30,15 @@ from datetime import datetime
 
 import numpy as np
 
+import config
+import dsp
+import harmony
 import paths
 
-SAMPLE_RATE = 48_000
-FRAMES_PER_SEC = 25          # 25 MRT2 frames = 1.0s of audio
+SAMPLE_RATE = config.SAMPLE_RATE
+FRAMES_PER_SEC = config.FRAMES_PER_SEC   # 25 MRT2 frames = 1.0s of audio
 
-# ── Harmony (shared with the live controller's encoding) ──────────────────────
-_PC    = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
-_MINOR = (0, 2, 3, 5, 7, 8, 10)
-_MAJOR = (0, 2, 4, 5, 7, 9, 11)
-
-
-def _build_notes(key, num_notes):
-    """Soft key constraint: turn OFF out-of-key pitches, leave in-key free."""
-    if not key:
-        return None
-    try:
-        k = key.strip()
-        pc = _PC[k[0].upper()]
-        if len(k) > 1 and k[1] in '#b':
-            pc += 1 if k[1] == '#' else -1
-        pc %= 12
-        scale = {(pc + iv) % 12 for iv in (_MAJOR if 'maj' in k.lower() else _MINOR)}
-        notes = [-1] * num_notes
-        for midi in range(min(128, num_notes)):
-            if 36 <= midi <= 84 and (midi % 12) not in scale:
-                notes[midi] = 0
-        return notes
-    except Exception:
-        return None
-
-
-def _normalize(buf, target_rms=0.16):
-    rms = float(np.sqrt(np.mean(buf ** 2)))
-    if rms > 1e-5:
-        buf = buf * (target_rms / rms)
-    return buf
-
-
-def _soft_limit(x, th=0.85):
-    a = np.abs(x)
-    over = a > th
-    if over.any():
-        x = x.copy()
-        x[over] = np.sign(x[over]) * (th + (1 - th) * np.tanh((a[over] - th) / (1 - th)))
-    return x
+# Harmony note-mask logic lives in harmony.py, shared with the live controller.
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -139,11 +103,11 @@ SCENE_MAX_SEC = 16.0
 CHUNK_FRAMES   = 25       # 1.0s chunks — offline, favour coherent settling
 STYLE_MORPH    = 0.18     # per-chunk glide toward the current scene's style
 PALETTE_ANCHOR = 0.20     # how much the speaker's palette tints the WHOLE song
-CFG            = 2.0      # style guidance (musical, not over-saturated)
-TEMPERATURE    = 1.0
+CFG            = config.STYLE_CFG    # style guidance (shared with the live engine)
+TEMPERATURE    = config.TEMPERATURE
 TOP_K          = 40
-DECAY_RMS      = 0.015    # re-seed the state if the stream fades below this…
-DECAY_CHUNKS   = 5        # …for this many chunks (stops fade-to-silence)
+DECAY_RMS      = config.DECAY_RMS     # re-seed if the stream fades below this…
+DECAY_CHUNKS   = config.DECAY_CHUNKS  # …for this many chunks (stops fade-to-silence)
 
 
 def _tag(s: str) -> str:
@@ -204,7 +168,7 @@ def render_keepsake(session_path: str, out_path: str | None = None,
     mrt = MagentaRT2SystemMlxfn(size='mrt2_base')
     num_notes = mrt._num_notes
 
-    notes = _build_notes(home_key, num_notes)
+    notes = harmony.build_notes(home_key, num_notes)
 
     # The speaker's palette → one consistent timbral identity across the song.
     palette_emb = mrt.embed_style(f"{palette}, warm, gentle, instrumental")
@@ -246,7 +210,7 @@ def render_keepsake(session_path: str, out_path: str | None = None,
             print("   …re-seeded (stream had faded)")
         chunks.append(samp)
 
-    song = _soft_limit(_normalize(np.concatenate(chunks), target_rms=0.16))
+    song = dsp.soft_limit(dsp.normalize(np.concatenate(chunks), target_rms=0.16))
     _write_wav(out_path, song)
     print(f"\n✓ Keepsake song written: {out_path}  ({song.shape[0]/SAMPLE_RATE:.0f}s)")
     return out_path
@@ -259,7 +223,7 @@ def _dry_stream(secs: int) -> np.ndarray:
     tone = 0.2 * np.sin(2 * np.pi * 220 * t) * (0.6 + 0.4 * np.sin(2 * np.pi * 0.5 * t))
     pulse = (np.mod(t, 0.5) < 0.04).astype(np.float32) * 0.2
     s = (tone + pulse).astype(np.float32)
-    return _normalize(np.stack([s, s], axis=1), target_rms=0.16)
+    return dsp.normalize(np.stack([s, s], axis=1), target_rms=0.16)
 
 
 def _write_wav(path, audio):
