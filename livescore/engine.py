@@ -28,6 +28,9 @@ from presets import get as get_preset
 from speaker_signature import SpeakerSignature
 from keepsake import SessionLog
 from session_summary import build_summary, write_summary
+from log import get_logger
+
+log = get_logger("engine")
 
 UPDATE_HZ = 20   # parameter pushes per second to MRT2 (matches main.py)
 
@@ -83,7 +86,8 @@ class ScoreEngine:
                 mode=self.mode, morph_step=preset.morph_step,
                 default_a=preset.default_a, default_b=preset.default_b,
                 default_key=preset.default_key, telemetry=self._telemetry,
-                enable_drums=preset.enable_drums)
+                enable_drums=preset.enable_drums, anchor=preset.anchor,
+                axis_strength=preset.axis_strength)
             signature = SpeakerSignature()
             session_log = SessionLog()
             detector = (LLMStyleDirector(
@@ -108,7 +112,7 @@ class ScoreEngine:
                 self.phase = "running"
             threading.Thread(target=self._control_loop, daemon=True).start()
         except Exception as e:  # noqa: BLE001 — keep the server alive, report it
-            print(f"[engine] start failed: {e}")
+            log.error(f"[engine] start failed: {e}")
             with self._lock:
                 self.phase = "error"
                 self._running = False
@@ -132,7 +136,7 @@ class ScoreEngine:
                 if comp:
                     comp.stop()
             except Exception as e:  # noqa: BLE001
-                print(f"[engine] stop warning: {e}")
+                log.warning(f"[engine] stop warning: {e}")
         # Stamp the keepsake with the speaker signature (the BLEND of every voice
         # that spoke) BEFORE saving, so the offline render is personalised — the
         # same step main.py does. Without it the render falls back to a default.
@@ -140,7 +144,7 @@ class ScoreEngine:
             try:
                 session_log.set_signature(signature.signature())
             except Exception as e:  # noqa: BLE001
-                print(f"[engine] signature warning: {e}")
+                log.warning(f"[engine] signature warning: {e}")
         path = session_log.save() if session_log else None
         if path:
             self.last_keepsake = path
@@ -153,7 +157,7 @@ class ScoreEngine:
                 )
                 self.last_summary = write_summary(summary, paths.summary_for(path))
             except Exception as e:  # noqa: BLE001 — summary is best-effort
-                print(f"[engine] summary warning: {e}")
+                log.warning(f"[engine] summary warning: {e}")
         with self._lock:
             self.phase = "idle"
         return self.last_keepsake
@@ -212,6 +216,7 @@ class ScoreEngine:
     # ── Internal ──────────────────────────────────────────────────────────────
     def _control_loop(self) -> None:
         interval = 1.0 / UPDATE_HZ
+        health_ticks = 0
         while not self._stop_event.is_set():
             t0 = time.monotonic()
             features = self._analyzer.get_features()
@@ -222,5 +227,12 @@ class ScoreEngine:
                 self._telemetry.record(features, params,
                                        out.get("level", 0.0), out.get("bright", 0.0),
                                        out.get("spectrum"))
+                # ~1Hz engine-health push so the dashboard surfaces a STOPPED/SLOW
+                # engine (silent generation-thread death) instead of just silence.
+                health_ticks += 1
+                if health_ticks >= UPDATE_HZ:
+                    health_ticks = 0
+                    self._telemetry.health(self._controller.health(),
+                                           self._controller.perf_stats())
             elapsed = time.monotonic() - t0
             time.sleep(max(0.0, interval - elapsed))

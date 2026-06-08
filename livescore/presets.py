@@ -43,6 +43,13 @@ class Preset:
 
     # ── PythonMRTController (music transition) ───────────────────────────
     morph_step: float = 0.30       # per-chunk morph; 0.30 ≈ ~3s, 0.12 ≈ ~8s
+    anchor: float = 0.35           # how much every scene is pulled back toward the
+                                   # neutral foundation poles for coherence. LOWER =
+                                   # scenes commit harder to their own style = more
+                                   # reactive/dramatic; HIGHER = smoother but blander.
+    axis_strength: float = 0.0     # voice→arousal axis push, ORTHOGONAL to the A↔B
+                                   # blend (loud/energetic voice → more intense
+                                   # style). 0 = off; ~0.15 = a gentle live push.
     default_a: str = "mellow lo-fi chillhop, soft piano arpeggio, gentle beat, instrumental"
     default_b: str = "warm lo-fi hip hop beat, chill, gentle piano, instrumental"
     # Harmony is locked to this key from the FIRST chunk, so the note constraint
@@ -59,12 +66,21 @@ class Preset:
 PRESETS: dict[str, Preset] = {
 
     # Balanced default — dramatic narration, audiobooks, bedtime stories.
+    # Tuned to FOLLOW the emotional arc: full-range styles, eager scene changes,
+    # quicker morphs, low anchor so each mood commits.
     "storytelling": Preset(
         name="storytelling",
-        cooldown=6.0,                 # let scenes breathe — fewer, calmer changes
-        morph_step=0.20,              # ~5s glide between scenes (smoother flow)
+        cooldown=3.0,                 # consult Claude often so turns are caught fast
+        morph_step=0.35,              # ~3s glide — changes land quickly but smoothly
+        anchor=0.20,                  # scenes commit to their own mood (reactive)
+        axis_strength=0.15,           # voice energy also pushes intensity (arousal)
         drums_threshold=0.9,          # HIGH on purpose — intimate telling stays
                                       # drumless except on a real, big emphasis
+        style_hint=("Follow the story's emotional arc across the FULL range. Let "
+                    "dark, tense, or sad moments sound genuinely darker and sparser "
+                    "(low register, minor, hushed) and warm, hopeful, or joyful "
+                    "moments brighter and fuller. React to real emotional turns; "
+                    "give the two poles real distance so the voice can shape it."),
     ),
 
     # ⭐ DEMO MODE — intimate, personal storytelling tuned for MRT2's BEST-sounding

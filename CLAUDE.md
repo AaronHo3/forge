@@ -36,7 +36,7 @@ Microphone → VoiceAnalyzer → FeatureMapper → MRTController → MRT2 → Sp
    - MIDI mode (LEGACY): sends CC1/CC11/CC64 to the MRT2 AU plugin in a DAW via a virtual
      MIDI port. Kept as a fallback; not the path the project actually uses now.
 4. **main.py** — orchestrates all three with threading, terminal display, keyboard chord input.
-   `--mode python` selects the native path above; plain `main.py` still defaults to legacy MIDI.
+   Defaults to the native path above (`--mode python`); pass `--mode midi` for the legacy DAW path.
 
 ## Current status
 The native MLX pipeline runs end-to-end in real time. A pytest suite now covers the
@@ -89,9 +89,11 @@ Install everything with `cd livescore && pip install -r requirements.txt`
 
 ## Running individual components
 ```bash
-python3 main.py --mode python   # PRIMARY: native real-time pipeline — start talking
+python3 main.py                 # PRIMARY: native real-time pipeline (default) — start talking
 python3 spike_mlx_realtime.py   # standalone proof MRT2 streams in real time + timing chart
 python3 -m pytest               # the unit-test suite (no hardware needed)
 python3 voice_analyzer.py       # live mic feature test
-python3 main.py                 # legacy MIDI mode (needs a DAW + IAC bus)
+python3 main.py --mode midi     # legacy MIDI mode (needs a DAW + IAC bus)
+python3 analyze_style_space.py  # embed the palette + render MRT2 style-space maps
+python3 analyze_style_space.py --reviz   # re-render maps from cache (no model)
 ```

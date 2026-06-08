@@ -19,6 +19,10 @@ import numpy as np
 import sounddevice as sd
 import librosa
 
+from log import get_logger
+
+log = get_logger("voice")
+
 # MRT2 requires 48kHz — match here so we don't have to resample
 SAMPLE_RATE = 48_000
 # ~100ms of audio per analysis window
@@ -78,6 +82,10 @@ class VoiceAnalyzer:
         # "deque mutated during iteration" in CPython without it.
         self._raw_blocks: deque = deque(maxlen=50)
         self._raw_lock = threading.Lock()
+        # Latest sounddevice status flag, set (plain atomic assignment) by the
+        # audio thread and logged by the worker thread — the callback itself must
+        # stay lock-free, so it never touches the logging machinery directly.
+        self._pending_status = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -97,8 +105,8 @@ class VoiceAnalyzer:
         self._stream.start()
         self._thread = threading.Thread(target=self._process_loop, daemon=True)
         self._thread.start()
-        print(f"[VoiceAnalyzer] Listening at {SAMPLE_RATE} Hz, "
-              f"block size {BLOCK_SIZE} samples (~{BLOCK_SIZE/SAMPLE_RATE*1000:.0f}ms)")
+        log.info(f"[VoiceAnalyzer] Listening at {SAMPLE_RATE} Hz, "
+                 f"block size {BLOCK_SIZE} samples (~{BLOCK_SIZE/SAMPLE_RATE*1000:.0f}ms)")
 
     def stop(self):
         """Shut down the mic stream."""
@@ -139,9 +147,12 @@ class VoiceAnalyzer:
         return np.concatenate(blocks)
 
     def _audio_callback(self, indata, frames, time_info, status):
-        """Called by sounddevice on the audio thread — keep it fast."""
+        """Called by sounddevice on the audio thread — keep it fast and lock-free.
+        We must NOT call logging here (it takes locks / may do blocking I/O, which
+        PortAudio forbids in the callback); just hand the status off for the worker
+        thread to log."""
         if status:
-            print(f"[VoiceAnalyzer] sounddevice status: {status}")
+            self._pending_status = str(status)   # plain assignment: atomic, lock-free
         block = indata[:, 0].copy()
         self._append_raw(block)   # locked: safe against concurrent snapshots
         try:
@@ -151,7 +162,14 @@ class VoiceAnalyzer:
 
     def _process_loop(self):
         """Worker thread: pulls audio blocks and extracts features."""
+        last_logged_status = None
         while self._running:
+            # Log any audio-stream warning the callback flagged — off the audio
+            # thread, and only on change so a sustained overflow doesn't spam.
+            status = self._pending_status
+            if status and status != last_logged_status:
+                log.warning(f"[VoiceAnalyzer] sounddevice status: {status}")
+                last_logged_status = status
             try:
                 block = self._queue.get(timeout=0.5)
             except queue.Empty:

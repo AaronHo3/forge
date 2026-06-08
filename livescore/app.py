@@ -32,6 +32,7 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import log
 import paths
 from engine import ScoreEngine
 from telemetry import Telemetry
@@ -201,7 +202,12 @@ def main():
     parser.add_argument("--preset", default="storytelling")
     parser.add_argument("--port", type=int, default=8000, help="control panel port")
     parser.add_argument("--telemetry-port", type=int, default=8765)
+    parser.add_argument("--verbose", action="store_true",
+                        help="show the chatty engine debug lines (re-seeds, scene-holds)")
     args = parser.parse_args()
+
+    # Surface the engine's [MRT2]/[LLM] diagnostics on the console running the panel.
+    log.configure(verbose=args.verbose)
 
     # Persistent telemetry dashboard — started once, lives for the whole app, so
     # the live-engine iframe never breaks across Start/Stop cycles.

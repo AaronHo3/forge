@@ -4,8 +4,8 @@ main.py — Score the Story
 A narrator speaks. MRT2 composes the score in real time.
 
 Run:
-    python main.py              # MIDI mode (default)
-    python main.py --mode python  # Direct Python library mode
+    python main.py              # native magenta-rt real-time engine (default)
+    python main.py --mode midi  # legacy: drive the MRT2 AU plugin in a DAW via MIDI
 
 Controls (keyboard, while running):
     t <scene> + Enter  →  inject a scene description (bypasses mic)
@@ -32,6 +32,7 @@ from speaker_signature import SpeakerSignature
 from keepsake          import SessionLog
 from session_summary   import build_summary, write_summary
 
+import log
 import paths
 
 
@@ -78,8 +79,9 @@ def print_status(analyzer, mapper, detector=None, controller=None):
 def main():
     parser = argparse.ArgumentParser(description="Score the Story")
     parser.add_argument(
-        "--mode", choices=["midi", "python"], default="midi",
-        help="midi = send MIDI CC to MRT2 AU (default); python = use magenta-rt directly"
+        "--mode", choices=["midi", "python"], default="python",
+        help="python = native magenta-rt real-time engine (default); "
+             "midi = legacy: send MIDI CC to the MRT2 AU plugin in a DAW"
     )
     parser.add_argument(
         "--no-dashboard", action="store_true",
@@ -92,7 +94,15 @@ def main():
         "--preset", choices=list(PRESETS.keys()), default="storytelling",
         help="tuning bundle for the use case (timing, mapping, genre bias)"
     )
+    parser.add_argument(
+        "--verbose", action="store_true",
+        help="show the chatty engine debug lines (re-seeds, scene-holds)"
+    )
     args = parser.parse_args()
+
+    # Route the engine's [MRT2]/[LLM]/[voice] diagnostics through logging. The
+    # terminal UI below stays plain print(); this only governs the engine chatter.
+    log.configure(verbose=args.verbose)
 
     preset = get_preset(args.preset)
     print(f"\n🎙  Score the Story — {args.mode.upper()} mode · preset: {preset.name}\n")
@@ -115,7 +125,8 @@ def main():
     controller = MRTController(mode=args.mode, morph_step=preset.morph_step,
                                default_a=preset.default_a, default_b=preset.default_b,
                                default_key=preset.default_key, telemetry=telemetry,
-                               enable_drums=preset.enable_drums)
+                               enable_drums=preset.enable_drums, anchor=preset.anchor,
+                               axis_strength=preset.axis_strength)
     signature   = SpeakerSignature()           # voice fingerprint → song identity
     session_log = SessionLog()                  # captures the telling for the keepsake
     detector   = (LLMStyleDirector(analyzer, controller,
@@ -143,6 +154,7 @@ def main():
 
     def control_loop():
         interval = 1.0 / UPDATE_HZ
+        health_ticks = 0
         while not stop_event.is_set():
             t0 = time.monotonic()
             features = analyzer.get_features()
@@ -152,6 +164,12 @@ def main():
                 out = controller.output_stats() or {}
                 telemetry.record(features, params,
                                  out.get("level", 0.0), out.get("bright", 0.0))
+                # ~1Hz engine-health push (separate from the 20Hz tick stream) so
+                # the dashboard can show a STOPPED/SLOW engine, not just silence.
+                health_ticks += 1
+                if health_ticks >= UPDATE_HZ:
+                    health_ticks = 0
+                    telemetry.health(controller.health(), controller.perf_stats())
             elapsed = time.monotonic() - t0
             time.sleep(max(0.0, interval - elapsed))
 
@@ -186,7 +204,7 @@ def main():
             elif cmd == "s":
                 print_status(analyzer, mapper, detector, controller)
             elif cmd == "r":
-                controller.hold_chord([])
+                controller.release_chord()
                 print("Chord released.")
             elif cmd[:1] == "t" and (len(cmd) == 1 or cmd[1] == " "):
                 if detector:

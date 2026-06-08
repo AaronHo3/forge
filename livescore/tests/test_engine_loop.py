@@ -82,6 +82,55 @@ class TestHeadlessLoop:
         assert h["last_chunk_age_s"] is not None, "no chunk generated headless"
         assert backend.generate_calls >= 1
 
+    def test_axis_modulation_runs_headless(self):
+        # With axis_strength > 0 the loop pushes the style along the arousal axis
+        # each chunk; verify it boots and generates without faulting (the axis
+        # math must stay shape-consistent with the backend's embeddings).
+        backend = FakeBackend()
+        c = PythonMRTController(
+            backend_factory=lambda: backend,
+            output_factory=lambda **kw: _FakeStream(**kw),
+            axis_strength=0.15,
+        )
+        c.start()
+        deadline = time.monotonic() + 5.0
+        while c.health()["last_chunk_age_s"] is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        h = c.health()
+        c.stop()
+        assert h["ok"] is True, f"axis loop faulted: {h['fault']}"
+        assert backend.generate_calls >= 1
+        # The arousal axis was prewarmed + used → extra embeds beyond the 2 poles.
+        assert backend.embed_calls >= 4
+
+    def test_key_root_locks_but_mode_follows_mood(self):
+        # The "follow major/minor only" contract: the first root is locked for the
+        # session, but each scene's major/minor mode tracks the story's mood.
+        backend = FakeBackend()
+        c = PythonMRTController(
+            backend_factory=lambda: backend,
+            output_factory=lambda **kw: _FakeStream(**kw),
+        )
+        c.start()
+        deadline = time.monotonic() + 5.0
+        while c.health()["last_chunk_age_s"] is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+
+        def _apply(a, b, key):
+            before = backend.embed_calls
+            c.set_prompts(a, b, key)
+            d = time.monotonic() + 5.0
+            while backend.embed_calls < before + 2 and time.monotonic() < d:
+                time.sleep(0.02)
+
+        _apply("dark cello", "low strings", "G minor")
+        assert c._session_root == "G" and c._session_mode == "minor"
+        _apply("bright piano", "airy flute", "C major")   # different root, but...
+        c.stop()
+        assert c._session_root == "G", "root must stay locked across scenes"
+        assert c._session_mode == "major", "mode must follow the new scene's mood"
+        assert c._session_key_str() == "G major"
+
     def test_scene_change_re_embeds_poles_headless(self):
         backend = FakeBackend()
         c = PythonMRTController(

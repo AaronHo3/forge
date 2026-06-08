@@ -32,6 +32,10 @@ import config
 import dsp
 import harmony
 from feature_mapper import MRTParams
+from style_space import StyleSpace
+from log import get_logger
+
+log = get_logger("mrt")
 
 
 class HealthStatus(TypedDict):
@@ -74,7 +78,7 @@ class MIDIMRTController:
             import rtmidi
             self._midi_out = rtmidi.MidiOut()
             available = self._midi_out.get_ports()
-            print(f"[MIDI] Available ports: {available}")
+            log.info(f"[MIDI] Available ports: {available}")
 
             # Find our virtual port or fall back to the first available
             target = next(
@@ -83,27 +87,26 @@ class MIDIMRTController:
             )
             if target is not None:
                 self._midi_out.open_port(target)
-                print(f"[MIDI] Connected to port: {available[target]}")
+                log.info(f"[MIDI] Connected to port: {available[target]}")
             else:
                 # Create a virtual port (works on macOS/Linux)
                 self._midi_out.open_virtual_port(port_name)
-                print(f"[MIDI] Created virtual port: {port_name}")
+                log.info(f"[MIDI] Created virtual port: {port_name}")
 
             self._channel = 0   # MIDI channel 1 (0-indexed)
             self._active_notes = []
             self._ok = True
 
         except ImportError:
-            print("[MIDI] python-rtmidi not installed. Run: pip install python-rtmidi")
+            log.warning("[MIDI] python-rtmidi not installed. Run: pip install python-rtmidi")
             self._ok = False
         except Exception as e:
-            print(f"[MIDI] Could not open MIDI port: {e}")
+            log.error(f"[MIDI] Could not open MIDI port: {e}")
             self._ok = False
 
     def start(self):
-        print(f"[MIDI] Controller ready.")
-        print(f"       Prompt A → {self.PROMPT_A}")
-        print(f"       Prompt B → {self.PROMPT_B}")
+        log.info(f"[MIDI] Controller ready.\n       Prompt A → {self.PROMPT_A}"
+                 f"\n       Prompt B → {self.PROMPT_B}")
 
     def update(self, params: MRTParams):
         """Send current MRT2 parameters as MIDI CC messages."""
@@ -276,10 +279,19 @@ class PythonMRTController:
                  default_a: str | None = None, default_b: str | None = None,
                  default_key: str | None = None, telemetry=None,
                  backend_factory: Callable[[], MRTBackend] | None = None,
-                 enable_drums: bool = False,
+                 enable_drums: bool = False, anchor: float | None = None,
+                 axis_strength: float = 0.0,
                  output_factory: Callable[..., OutputStreamLike] | None = None):
         self._telemetry = telemetry
         self._enable_drums = enable_drums   # opt-in; drums default OFF (see _gen_chunk)
+        # Scene→foundation tether (instance overrides the class default). Lower =
+        # scenes commit harder to their own style = more reactive; see ANCHOR.
+        if anchor is not None:
+            self.ANCHOR = anchor
+        # Axis modulation: push the scene style along the AROUSAL direction with
+        # the voice's energy (chaos), a reactive dimension ORTHOGONAL to the A↔B
+        # (valence) line. 0 = off (exact legacy path); ~0.15 = a gentle live push.
+        self._axis_strength = float(axis_strength)
         # Output-stream seam: None -> a real sounddevice OutputStream. Tests inject
         # a fake so the generation loop can run with no audio device.
         self._output_factory = output_factory
@@ -316,10 +328,11 @@ class PythonMRTController:
         # its target by this fraction each chunk (exponential approach).
         chunk_sec = self.CHUNK_FRAMES / 25.0
         self._style_morph = min(0.5, max(0.05, chunk_sec / self._transition_seconds))
-        # Harmony locked for the whole session. If a default key is given it's set
-        # from the very first chunk (no mid-stream onset). If None, we fall back to
-        # locking on the first key Claude provides (the old behaviour).
-        self._session_key = default_key or None
+        # Harmony: the ROOT is locked for the whole session (no mid-stream re-tune
+        # of the root, which used to jolt), but the MODE (major↔minor) FOLLOWS the
+        # story's mood each scene, so harmony tracks valence (dark → minor, bright
+        # → major) on a stable root. Root comes from default_key, then the signature.
+        self._session_root, self._session_mode = harmony.split_key(default_key)
         self._pending_key = None        # signature key, applied at next scene change
 
         # ── Playback state (shared with the sd callback) ──────────────────
@@ -336,7 +349,13 @@ class PythonMRTController:
         self._zi0 = None           # low-pass filter state, left/right channels
         self._zi1 = None
 
-        # Profiling — surfaced in [perf] lines and the `s` status command.
+        # Profiling — surfaced in [perf] lines, the `s` status command, and the
+        # telemetry dashboard's engine-health badge. Both counters have a single
+        # writer: the sounddevice audio callback thread (_underruns in _callback,
+        # _starves in _read_stream which only _callback calls). health()/
+        # perf_stats() read them lock-free from the control-loop thread — a
+        # GIL-atomic int read that may be stale by one increment, which is fine
+        # for a monitor and avoids taking a lock inside the realtime callback.
         self._underruns   = 0     # sounddevice-reported output underflows
         self._starves     = 0     # buffer ran dry → we played silence (= stutter)
         self._gen_avg_ms  = 0.0
@@ -351,12 +370,19 @@ class PythonMRTController:
             self._pending_prompts = (prompt_a, prompt_b, key)
 
     def set_session_key(self, key: str):
-        """Switch the locked session key — e.g. to the speaker's signature key
+        """Switch the locked session ROOT — e.g. to the speaker's signature key
         once it's known. Applied at the NEXT scene change so the re-tune hides
         inside a transition the listener already expects, not mid-phrase."""
         if key:
             with self._lock:
                 self._pending_key = key
+
+    def _session_key_str(self) -> str | None:
+        """The current harmony key = locked root + mood-following mode, e.g.
+        'D minor'. None until a root is locked (harmony stays free)."""
+        if not self._session_root:
+            return None
+        return f"{self._session_root} {self._session_mode}"
 
     def _gen_chunk(self, mrt, style, params, state, np, notes=None):
         """Generate one ~1s chunk and update the rolling gen-time average."""
@@ -401,13 +427,16 @@ class PythonMRTController:
         try:
             self._run_audio_loop()
         except Exception as e:
-            import traceback
             fault = f"{type(e).__name__}: {e}"
             with self._lock:
                 self._fault = fault
             self._fault_event.set()   # wake anyone blocked on a fault
-            traceback.print_exc()
-            print(f"[MRT2] FATAL — generation stopped: {fault}")
+            # log.exception attaches the traceback (which already ends in
+            # "Type: message"), so the message stays a plain label to avoid
+            # printing the fault twice. NullHandler keeps it out of pytest stdout
+            # while a live run (configured) still shows the crash. `fault` itself
+            # is preserved on self._fault for health().
+            log.exception("[MRT2] FATAL — generation stopped")
 
     def _run_audio_loop(self):
         """Continuously generate audio (Collider-style) and play it. MRT2's state
@@ -417,9 +446,9 @@ class PythonMRTController:
         import numpy as np
         from scipy.signal import lfilter
 
-        print("[MRT2] Loading model...")
+        log.info("[MRT2] Loading model...")
         mrt = self._backend_factory()
-        print("[MRT2] Embedding prompts...")
+        log.info("[MRT2] Embedding prompts...")
         style_a = mrt.embed_style(self._prompt_a)
         style_b = mrt.embed_style(self._prompt_b)
 
@@ -490,19 +519,38 @@ class PythonMRTController:
         # Harmony present from the FIRST chunk if a session key is locked, so the
         # note constraint never switches on mid-stream (the first-scene-change
         # stutter). None → free, exactly like before, until Claude sets a key.
-        cur_notes = harmony.build_notes(self._session_key, mrt._num_notes)
+        cur_notes = harmony.build_notes(self._session_key_str(), mrt._num_notes)
         state     = None
 
-        def _blend(pa, pb, t):
+        def _lerp(pa, pb, t):
+            # Linear interpolation between two style embeddings. Named _lerp (not
+            # _blend) so it doesn't shadow self._blend, the live voice→filter scalar.
             return (1.0 - t) * pa + t * pb
 
         def _target(t):
             """The style this scene should settle on: the current Claude poles
             blended at t, then tethered ANCHOR of the way back to the foundation
             so it can never drift into incoherent territory."""
-            scene = _blend(emb_a, emb_b, t)
-            base  = _blend(found_a, found_b, t)
+            scene = _lerp(emb_a, emb_b, t)
+            base  = _lerp(found_a, found_b, t)
             return (1.0 - self.ANCHOR) * scene + self.ANCHOR * base
+
+        # StyleSpace gives the voice a second, ORTHOGONAL reactive axis (arousal)
+        # on top of the A↔B (valence) blend. Prewarm the axis direction now so the
+        # one-time embed cost is paid here, not as a mid-stream hiccup.
+        space = StyleSpace(mrt.embed_style)
+        if self._axis_strength > 0:
+            space.axis_dir("arousal")
+
+        def _styled(t, chaos):
+            """The conditioning style: the anchored A↔B blend, then pushed along the
+            arousal axis by the voice's energy (chaos 0..1 → coord -1..+1). With
+            axis_strength=0 this is exactly _target(t) — the legacy path."""
+            base = _target(t)
+            if self._axis_strength > 0:
+                base = space.from_axes(base, {"arousal": 2.0 * chaos - 1.0},
+                                       scale=self._axis_strength)
+            return base
 
         # scene_style is what we actually condition on; it GLIDES toward
         # target_style a little each chunk (no hard snap), so a scene change feels
@@ -534,7 +582,7 @@ class PythonMRTController:
         # foundation target (no morph needed yet).
         with self._lock:
             params = self._current_params
-        target_style = _target(float(params.prompt_blend))
+        target_style = _styled(float(params.prompt_blend), float(params.chaos))
         scene_style  = target_style
         c0, state = self._gen_chunk(mrt, scene_style,
                                     params, state, np, cur_notes)
@@ -542,7 +590,7 @@ class PythonMRTController:
             self._cur_stream = _emit(c0)
             self._cur_pos = 0
             self._trans = 1.0
-        print(f"[MRT2] Ready (continuous).\n       A → {self._prompt_a}\n       B → {self._prompt_b}")
+        log.info(f"[MRT2] Ready (continuous).\n       A → {self._prompt_a}\n       B → {self._prompt_b}")
 
         while not self._stop_event.is_set():
             # 1) New scene? Just swap the conditioning — NO restart. The running
@@ -559,30 +607,33 @@ class PythonMRTController:
                 te = time.monotonic()
                 emb_a = mrt.embed_style(prompt_a)
                 emb_b = mrt.embed_style(prompt_b)
-                # Harmony is locked ONCE per session: the first key we're given is
-                # held for the whole telling, so the key never yanks mid-stream
-                # (re-masking the keyboard was one of the hard "shocks"). The scene's
-                # mood still comes through the style embedding (minor/dark vs warm).
-                # Adopt the speaker's signature key (set once it's known) at this
-                # scene change — the re-tune hides inside an expected transition.
+                # Harmony: the ROOT is locked once (so it never yanks mid-stream,
+                # the old "shock"), but the MODE follows the story. The signature
+                # key, when known, sets the locked root at this scene change (the
+                # re-tune hides inside a transition the listener expects).
                 with self._lock:
                     pend_key = self._pending_key
                     self._pending_key = None
-                if pend_key:
-                    self._session_key = pend_key
-                    cur_notes = harmony.build_notes(self._session_key, mrt._num_notes)
-                elif self._session_key is None and key:
-                    self._session_key = key
-                    cur_notes = harmony.build_notes(self._session_key, mrt._num_notes)
+                root, mode = harmony.split_key(key)
+                if pend_key:                       # signature → lock its root
+                    proot, _ = harmony.split_key(pend_key)
+                    if proot:
+                        self._session_root = proot
+                if self._session_root is None and root:
+                    self._session_root = root       # else lock the first root Claude gives
+                if key:                             # this scene's mood → major/minor
+                    self._session_mode = mode
+                if self._session_root:
+                    cur_notes = harmony.build_notes(self._session_key_str(), mrt._num_notes)
                 # New target — but DON'T snap scene_style. It glides there over the
                 # next few chunks, so the transition is a smooth morph, not a cut.
-                target_style = _target(float(params.prompt_blend))
+                target_style = _styled(float(params.prompt_blend), float(params.chaos))
                 embed_ms = (time.monotonic() - te) * 1000.0
                 with self._pb_lock:
                     lead_s = (self._cur_stream.shape[0] - self._cur_pos) / self.SAMPLE_RATE
-                print(f"[MRT2] New scene → A: {prompt_a[:40]} | B: {prompt_b[:40]}  key: {self._session_key or '(free)'}")
-                print(f"[perf] embed {embed_ms:.0f}ms · heard in ~{lead_s:.1f}s · "
-                      f"gen {self._gen_avg_ms:.0f}ms/chunk · starves {self._starves}")
+                log.info(f"[MRT2] New scene → A: {prompt_a[:40]} | B: {prompt_b[:40]}  key: {self._session_key_str() or '(free)'}")
+                log.info(f"[perf] embed {embed_ms:.0f}ms · heard in ~{lead_s:.1f}s · "
+                         f"gen {self._gen_avg_ms:.0f}ms/chunk · starves {self._starves}")
                 if self._telemetry:
                     self._telemetry.event("render", ms=round(embed_ms + lead_s * 1000),
                                           chunk=round(self._gen_avg_ms),
@@ -602,7 +653,7 @@ class PythonMRTController:
                 # granularity from the voice every chunk — while the morph keeps it
                 # smooth and the anchor keeps it coherent. (Both poles are now
                 # "close cousins", so interpolating between them is seamless.)
-                target_style = _target(float(params.prompt_blend))
+                target_style = _styled(float(params.prompt_blend), float(params.chaos))
                 scene_style = scene_style + self._style_morph * (target_style - scene_style)
 
                 # Decay watchdog: if the stream has been fading for a while,
@@ -615,7 +666,7 @@ class PythonMRTController:
                 low_streak = 0 if (reseed or raw_rms >= self.DECAY_RMS) else low_streak + 1
                 if reseed:
                     cur_g = 1.0                          # restart the AGC cleanly
-                    print("[MRT2] output faded — re-seeded state to re-energise")
+                    log.debug("[MRT2] output faded — re-seeded state to re-energise")
                     if self._telemetry:
                         self._telemetry.event("reseed", reason="decay")
 
@@ -732,12 +783,14 @@ class MRTController:
     def __init__(self, mode: str = "midi", *, morph_step: float = 0.30,
                  default_a: str | None = None, default_b: str | None = None,
                  default_key: str | None = None, telemetry=None,
-                 enable_drums: bool = False):
+                 enable_drums: bool = False, anchor: float | None = None,
+                 axis_strength: float = 0.0):
         if mode == "python":
             self._impl = PythonMRTController(
                 morph_step=morph_step, default_a=default_a, default_b=default_b,
                 default_key=default_key, telemetry=telemetry,
-                enable_drums=enable_drums,
+                enable_drums=enable_drums, anchor=anchor,
+                axis_strength=axis_strength,
             )
         else:
             self._impl = MIDIMRTController()
@@ -781,6 +834,11 @@ class MRTController:
         """Only relevant in MIDI mode."""
         if isinstance(self._impl, MIDIMRTController):
             self._impl.hold_chord(notes, velocity)
+
+    def release_chord(self):
+        """Release any held chord — MIDI mode only (no-op in Python mode)."""
+        if isinstance(self._impl, MIDIMRTController):
+            self._impl.release_chord()
 
     def generate_chunk(self):
         """Only relevant in Python mode."""

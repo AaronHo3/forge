@@ -24,6 +24,10 @@ import threading
 import time
 from collections import deque
 
+from log import get_logger
+
+log = get_logger("llm")
+
 SAMPLE_RATE = 48_000
 
 
@@ -67,40 +71,50 @@ Title Case. NOT a sentence, NOT comma-separated adjectives.
          "Gentle Felt Piano", "Dusty Chillhop Beat", "Airy Synth Pad"
   BAD:   "low pulsing bass drone, minor key creeping dread, sustained tension"
 
-SOUND — keep it flowing and coherent (this matters MOST):
-- Stay in ONE warm world all session — lo-fi / chillhop / intimate acoustic —
-  so the whole score feels like one record. But within that world there is a
-  WIDE palette of colors. USE IT — don't default to piano + guitar every time.
-- PALETTE to draw from (all warm and gentle, all blend cleanly): felt piano,
-  Rhodes, Wurlitzer, electric piano, nylon guitar, fingerpicked guitar, warm
-  upright bass, cello, viola, harp, music box, celeste, glockenspiel,
-  vibraphone, marimba, mellow synth pad, mellotron, brushed drums, soft
-  chillhop beat, warm tape ambience, kalimba, dulcimer.
-- VARIETY across scene CHANGES: do NOT reuse the instruments you just used.
-  Each time you change, bring at least one FRESH color from the palette and
-  rotate (e.g. piano → Rhodes → harp → vibraphone → upright bass → music box).
-  Keep the MOOD continuous, but let the instrumentation breathe and evolve.
-- A and B (WITHIN one scene) must be CLOSE COUSINS — same family/register so
-  the blend is seamless. Two shades of one mood, NEVER a hard contrast.
-  GOOD: "Mellow Rhodes Keys" / "Warm Vibraphone". Variety lives ACROSS scenes,
-  never inside a single A/B pair.
+SOUND — follow the FULL emotional arc, but stay musical (MRT2 renders clean,
+tonal instruments beautifully and noise badly):
+- Use the WHOLE emotional range. A dark, tense, or sad scene should sound
+  GENUINELY darker — minor, low register, sparse, hushed, a soft drone or low
+  strings. A bright, hopeful, or joyful scene should sound genuinely warmer and
+  more open — major, brighter keys, airier and fuller. When the feeling changes,
+  let the music actually CHANGE COLOR. Don't flatten everything into the same
+  cozy lo-fi.
+- PALETTE — draw from the FULL range of timbres MRT2 knows, not just warm keys:
+    keys: felt / upright / grand piano, Rhodes, Wurlitzer, clavinet, celeste, organ
+    guitar: nylon, fingerpicked, steel-string, clean electric, jazz, slide
+    bowed strings: solo cello, violin, viola, warm ensemble, pizzicato, low strings
+    woodwinds: flute, clarinet, oboe, alto / tenor sax, pan flute
+    brass: muted trumpet, flugelhorn, french horn, trombone, soft brass swell
+    mallets: vibraphone, marimba, glockenspiel, kalimba, music box, hammered dulcimer
+    plucked / world: harp, koto, sitar, banjo, mandolin, oud, harmonium
+    synth / texture: warm pad, mellotron, FM bells, soft drone, tape ambience
+    low end / beat: upright bass, sub bass, brushed drums, soft lo-fi beat
+  Pick instruments that FIT the scene's feeling. Darker mood = lower / minor /
+  sparser; brighter mood = higher / major / fuller. Rotate families across scenes.
+- VARIETY across scene CHANGES: bring at least one FRESH color each change;
+  don't reuse the instruments you just used back to back.
+- A and B are the two POLES the narrator's voice travels between IN REAL TIME,
+  so give them real DISTANCE: a = the darker / calmer / sparser side of this
+  scene, b = the brighter / fuller / warmer side. The wider that gap (while
+  staying in one mood family), the more the voice can shape the sound live.
+  GOOD for a tense scene: "Hushed Low Piano" / "Tense Cello Swell".
+  GOOD for a joyful scene: "Warm Rhodes Chords" / "Bright Airy Glockenspiel".
 - INSTRUMENTAL only. Never vocals, singing, choir, lyrics, rap.
-- MUSICAL, never noisy. Never use: glitchy, distorted, dissonant, atonal,
-  harsh, noisy, chaotic, brass, fanfare, war, percussion-only. Convey tension
-  with a darker, sparser version of the warm palette — not with noise.
-- Favor gentle MOVEMENT (arpeggio, fingerpicked, soft groove, pulse) over a
-  static held drone.
+- MUSICAL, never noisy. Convey darkness with LOW, MINOR, SPARSE tonal
+  instruments — never with glitch, distortion, dissonance, atonality, harsh
+  noise, or percussion-only. Favor MOVEMENT (arpeggio, fingerpick, soft pulse)
+  over a static held drone.
 
-SCENE STABILITY — hold a groove, but FOLLOW the emotional arc:
-The music should flow and settle, not flicker — but a mood that never responds
-feels dead. Change when the FEELING genuinely turns, not on every sentence.
-- KEEP → {"keep": true}  while the emotional tone continues (same feeling, same
-  intensity). Minor wording changes or added detail → keep.
-- CHANGE → {"keep": false, "a": "...", "b": "...", "key": "..."}  on a clear
-  emotional TURN — even in the SAME place: calm→unease, tension→relief,
-  stillness→triumph, sorrow→hope. Shift the poles to the NEW emotional range
-  (warmer/brighter for hope or triumph; darker/sparser for unease or dread).
-  Transitions are smooth, so don't be afraid to follow a real turn.
+SCENE STABILITY — settle into a groove, but FOLLOW the emotional arc closely:
+The music should flow, not flicker — but it MUST track the story's feeling. When
+the emotional tone TURNS, change; only hold while the same feeling truly continues.
+- KEEP → {"keep": true}  only while the SAME feeling AND intensity continue.
+  Pure continuation or added detail with no mood shift → keep.
+- CHANGE → {"keep": false, "a": "...", "b": "...", "key": "..."}  on any real
+  emotional TURN — calm→unease, sorrow→relief, stillness→joy, warmth→dread,
+  hope→loss — even in the SAME place. Shift the poles to the NEW emotional range
+  and pick a fitting key (minor for darker, major for brighter). Transitions are
+  smooth, so FAVOR following a genuine turn over holding.
 
 KEY: root note A–G (optional #/b) + " minor" or " major". MINOR for darker/
 sadder, MAJOR for warmer/hopeful. Keep the key consistent across nearby scenes.
@@ -193,9 +207,9 @@ class LLMStyleDirector:
     def start(self):
         api_key = os.environ.get('ANTHROPIC_API_KEY')
         if not api_key:
-            print("[LLM] No ANTHROPIC_API_KEY — set it with:")
-            print("      export ANTHROPIC_API_KEY=sk-ant-...")
-            print("[LLM] Running without LLM style direction.")
+            log.warning("[LLM] No ANTHROPIC_API_KEY — set it with:\n"
+                        "      export ANTHROPIC_API_KEY=sk-ant-...\n"
+                        "[LLM] Running without LLM style direction.")
             return
         self._active = True
         threading.Thread(target=self._run, args=(api_key,), daemon=True).start()
@@ -238,11 +252,11 @@ class LLMStyleDirector:
 
         self._client = anthropic.Anthropic(api_key=api_key)
 
-        print("[LLM] Loading Whisper base.en...")
+        log.info("[LLM] Loading Whisper base.en...")
         # base.en is markedly more accurate than tiny.en (fewer garbled words
         # feeding Claude) at a still-modest cost. Drop to 'tiny.en' if too slow.
         stt = whisper.load_model('base.en')
-        print("[LLM] Ready — narration → Claude → MRT2 style poles")
+        log.info("[LLM] Ready — narration → Claude → MRT2 style poles")
 
         last_text = ""
 
@@ -279,7 +293,7 @@ class LLMStyleDirector:
                     # the re-tune hides inside an expected transition.
                     if hasattr(self._controller, "set_session_key"):
                         self._controller.set_session_key(sig["key"])
-                    print(f"[voice] live palette → {self._signature.describe()}")
+                    log.info(f"[voice] live palette → {self._signature.describe()}")
 
             audio_16k = librosa.resample(audio_48k, orig_sr=SAMPLE_RATE, target_sr=16_000)
 
@@ -296,7 +310,7 @@ class LLMStyleDirector:
                 )
                 self._last_whisper_ms = (time.monotonic() - w0) * 1000.0
             except Exception as e:
-                print(f"[LLM] transcription error: {e}")
+                log.warning(f"[LLM] transcription error: {e}")
                 continue
 
             # ── Gate 3: confidence ── trust Whisper's own non-speech flag.
@@ -310,7 +324,7 @@ class LLMStyleDirector:
             # We ALWAYS listen and accumulate — this is the continuous ingest.
             last_text = text
             self._recent.append(text)
-            print(f"[LLM] heard: \"{text[:80]}\"")
+            log.info(f"[LLM] heard: \"{text[:80]}\"")
             if self._telemetry:
                 self._telemetry.event("heard", text=text[:80])
             if self._session_log is not None:        # the story said, for the keepsake
@@ -322,7 +336,9 @@ class LLMStyleDirector:
             if time.monotonic() - self._last_call < self.DIRECTOR_INTERVAL:
                 continue
             self._last_call = time.monotonic()
-            self._process_text(" ".join(self._recent))
+            # Pass the NEWEST line as the signal; _process_text pulls the prior
+            # snippets in as light context. (Sending the whole blob diluted turns.)
+            self._process_text(text)
 
     def _has_speech(self, audio_48k, np) -> bool:
         """True only if the window has real speech-level energy."""
@@ -363,8 +379,8 @@ class LLMStyleDirector:
         self._consecutive_failures += 1
         if self._consecutive_failures >= self.CIRCUIT_THRESHOLD:
             self._circuit_open_until = time.monotonic() + self.CIRCUIT_COOLDOWN
-            print(f"[LLM] circuit OPEN — {self._consecutive_failures} consecutive "
-                  f"failures; pausing Claude for {self.CIRCUIT_COOLDOWN:.0f}s")
+            log.warning(f"[LLM] circuit OPEN — {self._consecutive_failures} consecutive "
+                        f"failures; pausing Claude for {self.CIRCUIT_COOLDOWN:.0f}s")
             # Reset so that AFTER the cooldown the API gets a fresh CIRCUIT_THRESHOLD
             # attempts before tripping again (no instant re-trip on one failure).
             self._consecutive_failures = 0
@@ -379,7 +395,7 @@ class LLMStyleDirector:
         if client is None:
             api_key = os.environ.get('ANTHROPIC_API_KEY')
             if not api_key:
-                print("[LLM] No API key — cannot process text")
+                log.warning("[LLM] No API key — cannot process text")
                 return
             self._client = anthropic.Anthropic(api_key=api_key)
             client = self._client
@@ -400,16 +416,21 @@ class LLMStyleDirector:
             prefill = '{"keep": false, "a": "'
         else:
             recent = " · ".join(self._recent_scenes)
+            # Prior snippets are LIGHT context only; the newest line is what we
+            # react to. Sending the whole rolling blob as equal weight let stale
+            # lines (e.g. an earlier happy moment) drown out a fresh dark turn.
+            prior = " ".join(list(self._recent)[:-1])[-200:]
             user = (f"Current music — A: {self.current_a} | B: {self.current_b}\n"
                     + (f"Recently used (if you CHANGE, pick FRESH colors, avoid "
                        f"these): {recent}\n" if recent else "")
-                    + f"New narration: {text}\n\n"
-                    "Decide: same scene (keep), or a real scene change with FRESH "
-                    "instrument colors from the palette?")
+                    + (f"Story leading up to this: …{prior}\n" if prior else "")
+                    + f"NEW narration — react to THIS: {text}\n\n"
+                    "Decide: keep (same feeling continues), or change to follow the "
+                    "emotional turn in the NEW narration — with poles in its range.")
             prefill = '{"keep":'   # no trailing space — API rejects it
 
         self.last_status = "calling Claude..."
-        print(f"[LLM] directing: \"{text[:80]}\"")
+        log.info(f"[LLM] directing: \"{text[:80]}\"")
         raw = ""                          # so error handlers never see it unbound
         try:
             t0 = time.monotonic()
@@ -442,9 +463,9 @@ class LLMStyleDirector:
             # Scene unchanged → hold the music, change nothing.
             if not force and data.get("keep"):
                 self.last_status = "same scene — holding"
-                print(f"[LLM] same scene — holding music  "
-                      f"[perf] whisper {self._last_whisper_ms:.0f}ms · "
-                      f"claude {claude_ms:.0f}ms")
+                log.info(f"[LLM] same scene — holding music  "
+                         f"[perf] whisper {self._last_whisper_ms:.0f}ms · "
+                         f"claude {claude_ms:.0f}ms")
                 if self._telemetry:
                     self._telemetry.event("hold",
                                           whisper=round(self._last_whisper_ms),
@@ -459,11 +480,11 @@ class LLMStyleDirector:
             self.current_b   = style_b
             self._recent_scenes.append(f"{style_a} / {style_b}")   # for anti-repeat
             self.last_status = "OK"
-            print(f"[LLM] A: {style_a}")
-            print(f"[LLM] B: {style_b}")
-            print(f"[LLM] key: {key or '(none)'}")
-            print(f"[perf] whisper {self._last_whisper_ms:.0f}ms · "
-                  f"claude {claude_ms:.0f}ms")
+            log.info(f"[LLM] A: {style_a}")
+            log.info(f"[LLM] B: {style_b}")
+            log.info(f"[LLM] key: {key or '(none)'}")
+            log.info(f"[perf] whisper {self._last_whisper_ms:.0f}ms · "
+                     f"claude {claude_ms:.0f}ms")
             if self._telemetry:
                 self._telemetry.event("scene", a=style_a[:40], b=style_b[:40],
                                       key=key, whisper=round(self._last_whisper_ms),
@@ -475,12 +496,12 @@ class LLMStyleDirector:
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             if raw:                       # we got a response but couldn't parse it
                 self.last_status = f"bad JSON: {raw[:60]}"
-                print(f"[LLM] bad JSON from Claude ({e}): {raw[:120]}")
+                log.warning(f"[LLM] bad JSON from Claude ({e}): {raw[:120]}")
             else:                         # the call itself failed (e.g. bad API key)
                 self._record_call_failure()
                 self.last_status = f"call failed: {e}"
-                print(f"[LLM] Claude call failed (check ANTHROPIC_API_KEY): {e}")
+                log.warning(f"[LLM] Claude call failed (check ANTHROPIC_API_KEY): {e}")
         except Exception as e:
             self._record_call_failure()
             self.last_status = f"ERR: {e}"
-            print(f"[LLM] API error: {e}")
+            log.warning(f"[LLM] API error: {e}")
