@@ -2,16 +2,17 @@
 
 ## Repository layout (two projects)
 This repo now holds two separate projects:
-- **`fallback/`** — the original Score-the-Story speech→music system this brief
+- **`livescore/`** — the live Score-the-Story speech→music system this brief
   describes. All its code + outputs live here. Run its commands from inside
-  `fallback/` (e.g. `cd fallback && python main.py`). Generated artifacts are
-  sorted under `fallback/outputs/{songs,keepsakes,arrangements,telemetry}/`
-  (routed via `fallback/paths.py`).
+  `livescore/` (e.g. `cd livescore && python3 main.py --mode python`). Generated
+  artifacts are sorted under
+  `livescore/outputs/{songs,keepsakes,arrangements,telemetry}/`
+  (routed via `livescore/paths.py`).
 - **`forge/`** — the NEW project: a generative-music game/playground for
   musicians built on MRT2. See [`GAME_PLAN.md`](GAME_PLAN.md) and
   [`forge/README.md`](forge/README.md). Outputs live in `forge/outputs/`.
 
-The rest of this brief describes the **`fallback/`** project.
+The rest of this brief describes the **`livescore/`** project.
 
 ## What this is
 A live AI music scoring system for the Berklee MusicHackathon (Google DeepMind Challenge).
@@ -39,13 +40,13 @@ Microphone → VoiceAnalyzer → FeatureMapper → MRTController → MRT2 → Sp
 
 ## Current status
 The native MLX pipeline runs end-to-end in real time. A pytest suite now covers the
-deterministic core (`cd fallback && python3 -m pytest`).
+deterministic core (`cd livescore && python3 -m pytest`).
 - `voice_analyzer.py` ✅ mic capture + feature extraction (unit-tested on synthetic buffers)
 - `feature_mapper.py` ✅ voice→param mapping (unit-tested)
 - `mrt_controller.py` ✅ native MLX path confirmed real-time; MIDI path is legacy
 - `llm_style_director.py` ✅ optional semantic rail (Whisper→Claude); decoupled, degrades gracefully
 - `speaker_signature.py`, `keepsake.py`, `paths.py` ✅ unit-tested
-- Robustness initiative in progress — see the `fallback-robustness` memory for the full roadmap.
+- Robustness initiative in progress — see the `livescore-robustness` memory for the full roadmap.
 
 Known issue: drums are currently forced OFF in the live engine (`mrt_controller.py` sends
 `drums=[0]`), so preset `drums_threshold` values have no live effect yet.
@@ -83,7 +84,7 @@ magenta-rt, mlx                       # native real-time generation (primary)
 openai-whisper, anthropic             # optional semantic steering (Whisper→Claude)
 python-rtmidi                         # legacy MIDI mode only
 ```
-Install everything with `cd fallback && pip install -r requirements.txt`
+Install everything with `cd livescore && pip install -r requirements.txt`
 (dev/test extras: `pip install -r requirements-dev.txt`).
 
 ## Running individual components

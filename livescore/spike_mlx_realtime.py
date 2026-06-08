@@ -2,8 +2,8 @@
 spike_mlx_realtime.py
 ---------------------
 A standalone proof that Magenta RealTime 2 generates music in real time,
-locally, on this Mac via the MLX backend. Nothing else in fallback/ depends
-on this file, and it depends on nothing in fallback/ either.
+locally, on this Mac via the MLX backend. Nothing else in livescore/ depends
+on this file, and it depends on nothing in livescore/ either.
 
 What it proves and measures:
   1. MRT2 loads and streams continuous audio to the speakers.

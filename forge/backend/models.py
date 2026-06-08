@@ -20,7 +20,7 @@ class PromptSpec:
 
     A single text prompt (text_a) is the simple case. Supplying text_b + blend
     drives MRT2's A↔B style interpolation (the "Collider" morph). The rest map
-    onto generate() args proven in the fallback's mrt_controller.py.
+    onto generate() args proven in the livescore project's mrt_controller.py.
     """
     text_a: str
     text_b: str | None = None

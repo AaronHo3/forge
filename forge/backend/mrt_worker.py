@@ -10,7 +10,7 @@ and processed SERIALLY on the worker thread. This is the constraint that makes
 pre-generation and turn-based pacing the right design rather than a workaround.
 
 CRITICAL: all MLX work (model load, embed_style, generate) happens on the worker
-thread and nowhere else, mirroring the fallback's mrt_controller.py.
+thread and nowhere else, mirroring the livescore project's mrt_controller.py.
 
 The generate loop is ported from mrt_controller.py:_gen_chunk - embed_style →
 generate(... state=state) in a loop, threading `state` chunk-to-chunk,
@@ -47,7 +47,7 @@ CFG_SPAN = 1.0
 TEMPERATURE = 1.0
 TOP_K = 32
 
-# Output conditioning DSP (ported from the fallback's mrt_controller.py). WITHOUT
+# Output conditioning DSP (ported from the livescore project's mrt_controller.py). WITHOUT
 # this, raw MRT2 chunks come out at wildly inconsistent levels and the
 # autoregressive stream drifts toward silence - which is exactly why ungated MRT2
 # output sounds weak/noisy. This chain is what makes MRT2 actually sound good.
@@ -208,7 +208,7 @@ class MRTWorker:
         drums = [1] if spec.drums else [0]        # 1 = on, 0 = off (per generate() doc)
         cfg = CFG_BASE + max(0.0, min(1.0, spec.density)) * CFG_SPAN
 
-        # Stream chunks through the fallback's quality chain: per-chunk loudness
+        # Stream chunks through the livescore project's quality chain: per-chunk loudness
         # AGC (every chunk to TARGET_RMS, clamped so silent chunks can't explode),
         # a soft limiter, and a decay watchdog that re-seeds the state when the
         # stream drifts toward silence. This is the difference between MRT2 sounding

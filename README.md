@@ -92,7 +92,7 @@ The first generation loads the model once and is slow; every clip after is quick
 
 - `forge/` — the platform described above (`backend/` FastAPI + engines,
   `frontend/` the pages, `audiotool_sidecar/` a Node bridge to Audiotool).
-- `fallback/` — the original Score-the-Story speech-to-music system this project
+- `livescore/` — the original Score-the-Story speech-to-music system this project
   grew out of.
 - `GAME_PLAN.md` — design notes.
 

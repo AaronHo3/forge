@@ -3,8 +3,8 @@
 A generative-music playground for musicians, powered by MRT2.
 See [`../GAME_PLAN.md`](../GAME_PLAN.md) for the full vision + architecture.
 
-> This is a **new, self-contained project**. The Score-the-Story files in the parent
-> directory are an untouched fallback.
+> This is a **new, self-contained project**. The original Score-the-Story files live
+> in the sibling `livescore/` directory, kept as an untouched reference.
 
 ## The one primitive
 

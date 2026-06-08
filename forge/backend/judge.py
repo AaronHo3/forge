@@ -7,7 +7,7 @@ point: a wrong guess should teach.
 
 Two backends:
   - Claude (claude-haiku) when ANTHROPIC_API_KEY is set - reuses the cached
-    system-prompt pattern from the fallback's llm_style_director.py.
+    system-prompt pattern from the livescore project's llm_style_director.py.
   - A word-overlap heuristic fallback when there's no key (so the game always runs).
 
 Difficulty (beginner|advanced) swaps the RUBRIC, not the code.

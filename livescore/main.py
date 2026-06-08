@@ -57,12 +57,18 @@ def print_status(analyzer, mapper, detector=None, controller=None):
         print(f"A: {detector.current_a}")
         print(f"B: {detector.current_b}")
     if controller:
+        health = controller.health() if hasattr(controller, "health") else None
+        if health and not health["ok"]:
+            print("\n── Engine ─────────────────────────")
+            print(f"⚠  STOPPED — {health['fault']}")
         perf = controller.perf_stats()
         if perf:
             flag = "ok" if perf["realtime_ok"] else "SLOWER THAN REALTIME"
             print(f"\n── Performance ────────────────────")
             print(f"generate: {perf['gen_ms_per_chunk']:.0f} ms/chunk ({flag})")
             print(f"starves (stutters): {perf.get('starves', 0)}   underruns: {perf['underruns']}")
+            if health and health.get("last_chunk_age_s") is not None:
+                print(f"last chunk: {health['last_chunk_age_s']:.1f}s ago")
     print()
 
 

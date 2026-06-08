@@ -25,8 +25,19 @@ These are conventional assignments but can be remapped in MRT2's AU UI.
 import re
 import threading
 import time
+from typing import Callable, TypedDict
+
 import numpy as np
 from feature_mapper import MRTParams
+
+
+class HealthStatus(TypedDict):
+    """The engine liveness contract returned by PythonMRTController.health()."""
+    ok: bool
+    fault: str | None
+    last_chunk_age_s: float | None
+    starves: int
+    underruns: int
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -169,6 +180,13 @@ class MIDIMRTController:
 #  APPROACH B — Python Library (magenta-rt)
 # ══════════════════════════════════════════════════════════════════════
 
+def _default_backend() -> object:
+    """Create the real MRT2 MLX backend. Imported lazily and run on the audio
+    thread (all MLX work must stay on one thread)."""
+    from magenta_rt.mlx.system import MagentaRT2SystemMlxfn
+    return MagentaRT2SystemMlxfn(size='mrt2_base')
+
+
 class PythonMRTController:
     """
     Controls MRT2 directly via magenta-rt (MagentaRT2System, MLX backend).
@@ -258,8 +276,21 @@ class PythonMRTController:
 
     def __init__(self, morph_step: float = 0.30,
                  default_a: str | None = None, default_b: str | None = None,
-                 default_key: str | None = None, telemetry=None):
+                 default_key: str | None = None, telemetry=None,
+                 backend_factory: Callable[[], object] | None = None):
         self._telemetry = telemetry
+        # The MRT2 backend is created lazily on the audio thread via this factory,
+        # so tests can inject a fake (or a deliberately failing) one without
+        # loading the real model or opening an audio device.
+        self._backend_factory = (backend_factory if backend_factory is not None
+                                 else _default_backend)
+        # Fault state: set by the audio-loop supervisor if generation ever dies,
+        # so the app can surface a clear error instead of silent dead air.
+        # _fault is guarded by _lock; _fault_event lets callers block until a
+        # fault instead of polling. _last_chunk_time is a GIL-atomic float.
+        self._fault: str | None = None
+        self._fault_event = threading.Event()
+        self._last_chunk_time = 0.0   # monotonic time the last chunk was generated
         self._out_rms = 0.0          # RMS of the most recent output block
         self._out_block = None       # mono copy of it, for spectral centroid
         self._current_params = MRTParams()
@@ -364,6 +395,7 @@ class PythonMRTController:
         gen_ms = (time.monotonic() - tg) * 1000.0
         self._gen_avg_ms = (0.8 * self._gen_avg_ms + 0.2 * gen_ms
                             if self._gen_avg_ms else gen_ms)
+        self._last_chunk_time = time.monotonic()   # heartbeat for health()
         return np.ascontiguousarray(wav.samples), state
 
     def _soft_limit(self, x, np):
@@ -395,6 +427,22 @@ class PythonMRTController:
         return np.concatenate([avail, pad]), L
 
     def _audio_loop(self):
+        """Supervisor around the generation loop. If anything inside fails (model
+        load, audio device, or a generation error), record it as a fault the rest
+        of the app can read via health() — instead of the thread dying silently
+        while the app still looks like it is running."""
+        try:
+            self._run_audio_loop()
+        except Exception as e:
+            import traceback
+            fault = f"{type(e).__name__}: {e}"
+            with self._lock:
+                self._fault = fault
+            self._fault_event.set()   # wake anyone blocked on a fault
+            traceback.print_exc()
+            print(f"[MRT2] FATAL — generation stopped: {fault}")
+
+    def _run_audio_loop(self):
         """Continuously generate audio (Collider-style) and play it. MRT2's state
         threads from chunk to chunk so the music evolves and never repeats. All
         MLX work stays in this thread; the callback only does numpy + a filter."""
@@ -402,16 +450,11 @@ class PythonMRTController:
         import numpy as np
         from scipy.signal import lfilter
 
-        try:
-            from magenta_rt.mlx.system import MagentaRT2SystemMlxfn
-            print("[MRT2] Loading model...")
-            mrt = MagentaRT2SystemMlxfn(size='mrt2_base')
-            print("[MRT2] Embedding prompts...")
-            style_a = mrt.embed_style(self._prompt_a)
-            style_b = mrt.embed_style(self._prompt_b)
-        except Exception as e:
-            print(f"[MRT2] Failed to load: {e}")
-            return
+        print("[MRT2] Loading model...")
+        mrt = self._backend_factory()
+        print("[MRT2] Embedding prompts...")
+        style_a = mrt.embed_style(self._prompt_a)
+        style_b = mrt.embed_style(self._prompt_b)
 
         self._zi0 = np.zeros(1, dtype=np.float32)
         self._zi1 = np.zeros(1, dtype=np.float32)
@@ -671,6 +714,25 @@ class PythonMRTController:
             "realtime_ok": self._gen_avg_ms < chunk_ms if self._gen_avg_ms else True,
         }
 
+    def health(self) -> HealthStatus:
+        """Liveness snapshot for the app/UI. `ok` goes False if the generation
+        thread has faulted (model load, audio device, or a generation error),
+        turning the old 'silent dead engine that still looks running' into a
+        visible, diagnosable state. `last_chunk_age_s` is None until the first
+        chunk is produced."""
+        with self._lock:
+            fault = self._fault
+        age = None
+        if self._last_chunk_time:
+            age = round(time.monotonic() - self._last_chunk_time, 2)
+        return {
+            "ok": fault is None,
+            "fault": fault,
+            "last_chunk_age_s": age,
+            "starves": self._starves,
+            "underruns": self._underruns,
+        }
+
     def update(self, params: MRTParams):
         """Update target parameters (thread-safe). Within a scene the voice
         shapes the audio: blend → filter brightness, chaos → volume."""
@@ -735,6 +797,12 @@ class MRTController:
         """Output audio level + brightness — Python mode only."""
         if isinstance(self._impl, PythonMRTController):
             return self._impl.output_stats()
+        return None
+
+    def health(self) -> HealthStatus | None:
+        """Engine liveness/fault snapshot — Python mode only."""
+        if isinstance(self._impl, PythonMRTController):
+            return self._impl.health()
         return None
 
     def hold_chord(self, notes: list[str], velocity: int = 80):
