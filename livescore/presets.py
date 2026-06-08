@@ -7,7 +7,7 @@ Per-use-case tuning bundles. The same engine becomes "Meditation mode" or
 Each Preset gathers the knobs that were previously scattered across
 FeatureMapper, LLMStyleDirector, and PythonMRTController:
 
-  smoothing / drums_threshold     → how the voice maps to params
+  smoothing / drums_threshold / enable_drums → how the voice maps to params
   transcribe_interval / audio_window / cooldown → how fast it reacts to speech
   morph_step                      → how fast the music transitions on a change
   default_a / default_b           → the starting musical poles
@@ -29,6 +29,9 @@ class Preset:
                                    # speaker's own loudness) above which drums turn
                                    # on. 0.5 ≈ average; higher = needs a bigger
                                    # peak; >1 = never. Tuned per preset below.
+    enable_drums: bool = False     # master switch: drums play only when this is
+                                   # True AND energy crosses drums_threshold. Off
+                                   # for intimate telling; on for dnd/stream/fitness.
 
     # ── LLMStyleDirector (reaction timing) ───────────────────────────────
     # Listening is ALWAYS continuous. `cooldown` only sets how often Claude is
@@ -107,6 +110,7 @@ PRESETS: dict[str, Preset] = {
         name="dnd",
         smoothing=0.65,
         drums_threshold=0.6,          # drums on dramatic swells (combat/action)
+        enable_drums=True,
         cooldown=4.0,
         morph_step=0.30,
         default_a="dark fantasy dungeon ambience, low sustained strings, ominous drone, instrumental",
@@ -123,6 +127,7 @@ PRESETS: dict[str, Preset] = {
         name="stream",
         smoothing=0.72,
         drums_threshold=0.62,         # groove comes in when the host gets hyped
+        enable_drums=True,
         cooldown=5.0,
         morph_step=0.25,
         default_a="chill lo-fi beat, mellow electric piano, relaxed, instrumental",
@@ -137,6 +142,7 @@ PRESETS: dict[str, Preset] = {
         name="fitness",
         smoothing=0.55,               # snappier reaction
         drums_threshold=0.45,         # drums kick in easily (just above average)
+        enable_drums=True,
         cooldown=3.0,
         morph_step=0.40,              # ~2.5s, punchy
         default_a="steady warmup electronic pulse, driving bass, instrumental",

@@ -75,6 +75,10 @@ class SessionLog:
         with self._lock:
             return [dict(s) for s in self._scenes]
 
+    def elapsed(self) -> float:
+        """Seconds since this session started (for the end-of-session summary)."""
+        return time.monotonic() - self._t0
+
     def save(self) -> str | None:
         with self._lock:
             if not self._scenes:

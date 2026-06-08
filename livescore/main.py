@@ -30,6 +30,9 @@ from telemetry         import Telemetry
 from presets           import PRESETS, get as get_preset
 from speaker_signature import SpeakerSignature
 from keepsake          import SessionLog
+from session_summary   import build_summary, write_summary
+
+import paths
 
 
 # ── Story arc: starting chord suggestions ─────────────────────────────
@@ -111,7 +114,8 @@ def main():
                                drums_threshold=preset.drums_threshold)
     controller = MRTController(mode=args.mode, morph_step=preset.morph_step,
                                default_a=preset.default_a, default_b=preset.default_b,
-                               default_key=preset.default_key, telemetry=telemetry)
+                               default_key=preset.default_key, telemetry=telemetry,
+                               enable_drums=preset.enable_drums)
     signature   = SpeakerSignature()           # voice fingerprint → song identity
     session_log = SessionLog()                  # captures the telling for the keepsake
     detector   = (LLMStyleDirector(analyzer, controller,
@@ -222,6 +226,17 @@ def main():
             path = session_log.save()
             if path:
                 print(f"🎵 Session captured → {path}")
+                try:
+                    summary = build_summary(
+                        duration_s=session_log.elapsed(),
+                        scenes=session_log.scenes(),
+                        perf=controller.perf_stats(),
+                        health=controller.health(),
+                    )
+                    spath = write_summary(summary, paths.summary_for(path))
+                    print(f"📊 Session report → {spath}")
+                except Exception as e:
+                    print(f"   (session report skipped: {e})")
                 print(f"   Render the keepsake song with:")
                 print(f"     python3 keepsake.py render {path}")
                 print(f"   ...or turn it into an editable, multiplayer Audiotool project:")

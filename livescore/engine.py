@@ -18,6 +18,7 @@ import os
 import threading
 import time
 
+import paths
 from voice_analyzer import VoiceAnalyzer
 from feature_mapper import FeatureMapper
 from mrt_controller import MRTController
@@ -26,6 +27,7 @@ from telemetry import Telemetry
 from presets import get as get_preset
 from speaker_signature import SpeakerSignature
 from keepsake import SessionLog
+from session_summary import build_summary, write_summary
 
 UPDATE_HZ = 20   # parameter pushes per second to MRT2 (matches main.py)
 
@@ -61,6 +63,7 @@ class ScoreEngine:
 
         self.last_keepsake: str | None = None   # session JSON (data log)
         self.last_song: str | None = None        # rendered offline .wav
+        self.last_summary: str | None = None      # structured session report
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
     # Heavy work (mic open, MRT2 model load) runs OUTSIDE the lock so /state stays
@@ -79,7 +82,8 @@ class ScoreEngine:
             controller = MRTController(
                 mode=self.mode, morph_step=preset.morph_step,
                 default_a=preset.default_a, default_b=preset.default_b,
-                default_key=preset.default_key, telemetry=self._telemetry)
+                default_key=preset.default_key, telemetry=self._telemetry,
+                enable_drums=preset.enable_drums)
             signature = SpeakerSignature()
             session_log = SessionLog()
             detector = (LLMStyleDirector(
@@ -140,6 +144,16 @@ class ScoreEngine:
         path = session_log.save() if session_log else None
         if path:
             self.last_keepsake = path
+            try:
+                summary = build_summary(
+                    duration_s=session_log.elapsed(),
+                    scenes=session_log.scenes(),
+                    perf=controller.perf_stats() if controller else None,
+                    health=controller.health() if controller else None,
+                )
+                self.last_summary = write_summary(summary, paths.summary_for(path))
+            except Exception as e:  # noqa: BLE001 — summary is best-effort
+                print(f"[engine] summary warning: {e}")
         with self._lock:
             self.phase = "idle"
         return self.last_keepsake

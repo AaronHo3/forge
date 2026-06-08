@@ -54,3 +54,10 @@ def arrangement_for(keepsake: str) -> str:
     if swapped == b:                       # no prefix to swap
         swapped = b.replace(".json", ".arrangement.json")
     return os.path.join(ARRANGEMENTS, swapped)
+
+
+def summary_for(keepsake: str) -> str:
+    """summary-<stamp>.json in outputs/telemetry/, from a keepsake path —
+    the structured end-of-session report sits beside the telemetry log."""
+    b = os.path.basename(keepsake).replace("keepsake-", "summary-")
+    return os.path.join(TELEMETRY, b)
