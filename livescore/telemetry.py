@@ -101,6 +101,27 @@ class Telemetry:
         obj = {"kind": kind, "t": round(time.monotonic() - self._t0, 3), **fields}
         self._emit(json.dumps(obj))
 
+    def health(self, health: dict | None, perf: dict | None = None):
+        """Push an engine-health snapshot as a discrete 'health' event so the
+        dashboard can show a STOPPED / SLOW state — turning a silently-dead or
+        behind-realtime generation thread into something visible in the browser,
+        not only via the terminal `s` key.
+
+        Accepts MRTController.health()/perf_stats() dicts as-is, so the field
+        mapping lives in exactly one place. No-ops on None (e.g. MIDI mode),
+        emitted ~1Hz by the control loop rather than at the 20Hz tick rate."""
+        if not health:
+            return
+        perf = perf or {}
+        self.event("health",
+                   ok=bool(health.get("ok", True)),
+                   fault=health.get("fault"),
+                   gen_ms=perf.get("gen_ms_per_chunk"),
+                   realtime_ok=bool(perf.get("realtime_ok", True)),
+                   starves=health.get("starves", perf.get("starves", 0)),
+                   underruns=health.get("underruns", perf.get("underruns", 0)),
+                   last_chunk_age_s=health.get("last_chunk_age_s"))
+
     def _emit(self, line: str):
         """Log a line and fan it out to all connected dashboards."""
         if self._log_file:
@@ -294,6 +315,14 @@ _DASHBOARD_HTML = r"""<!DOCTYPE html>
   .vu .fill { height:100%; width:0%; background:linear-gradient(90deg,#bc8cff,#d2b3ff);
               transition:width .1s; }
   .eng-out { font-size:11px; color:#8b949e; margin-top:6px; }
+  /* engine-health badge: live/realtime, behind-realtime, or stopped+fault */
+  .ehealth { margin-left:auto; font-size:11px; padding:2px 10px; border-radius:10px;
+             background:#161b22; border:1px solid #30363d; color:#8b949e;
+             letter-spacing:.3px; max-width:60%; overflow:hidden;
+             text-overflow:ellipsis; white-space:nowrap; }
+  .ehealth.ok   { background:#0f2417; border-color:#238636; color:#3fb950; }
+  .ehealth.slow { background:#2b2410; border-color:#9e6a3a; color:#ffa657; }
+  .ehealth.down { background:#2b1212; border-color:#b62324; color:#f85149; font-weight:700; }
 </style>
 </head>
 <body>
@@ -322,7 +351,8 @@ _DASHBOARD_HTML = r"""<!DOCTYPE html>
 
 <!-- MRT2 engine: what it's being fed (style poles + blend + key + drums) and generating. -->
 <section class="engine">
-  <h2><span class="gendot" id="gendot"></span> MAGENTA REALTIME 2 — live generative engine</h2>
+  <h2><span class="gendot" id="gendot"></span> MAGENTA REALTIME 2 — live generative engine
+      <span id="eng-health" class="ehealth">engine: —</span></h2>
   <div class="eng-grid">
     <div>
       <div class="poles">
@@ -334,6 +364,7 @@ _DASHBOARD_HTML = r"""<!DOCTYPE html>
         <span class="chip">key <b id="eng-key">—</b></span>
         <span class="chip">drums <b id="eng-drums">off</b></span>
         <span class="chip">generating <b id="eng-gen">—</b> ms/chunk</span>
+        <span class="chip">stutters <b id="eng-starves">0</b> · underruns <b id="eng-underruns">0</b></span>
       </div>
     </div>
     <div>
@@ -508,6 +539,11 @@ function logLine(html) {
   log.prepend(div);
   while (log.children.length > 14) log.removeChild(log.lastChild);
 }
+// Escape server-supplied strings before they go into a logLine's innerHTML.
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 function updateLat() {
   if (!lastScene) return;
@@ -521,6 +557,7 @@ function updateLat() {
 
 // ── Pipeline strip + MRT2 engine panel state ──────────────────────────────
 let lastHeardMs = -9999, lastClaudeMs = -9999, lastSceneFlash = -9999, lastGen = null;
+let lastHealthOk = null;   // track engine health so STOPPED is logged once, not every tick
 const $ = (id) => document.getElementById(id);
 function lit(id, on) { $(id).classList.toggle('on', on); }
 
@@ -582,6 +619,28 @@ es.onmessage = (e) => {
     lastGen = d.chunk; lastSceneFlash = performance.now();
     const warn = d.underruns > 0 ? ` ⚠ underruns ${d.underruns}` : '';
     logLine(`<span class="lg-r">♪ rendered ${d.ms}ms (${d.chunk}ms/chunk)${warn}</span>`);
+  } else if (d.kind === 'health') {
+    // Engine liveness: green = generating in realtime, amber = behind realtime,
+    // red = the generation thread has faulted (was the silent-death case).
+    const el = $('eng-health');
+    if (!d.ok) {
+      el.className = 'ehealth down';
+      el.textContent = '■ STOPPED — ' + (d.fault || 'fault');
+      if (lastHealthOk !== false)
+        logLine(`<span class="lg-r">■ ENGINE STOPPED — ${esc(d.fault) || 'fault'}</span>`);
+      lastHealthOk = false;
+    } else if (d.realtime_ok === false) {
+      el.className = 'ehealth slow';
+      el.textContent = '▲ behind realtime';
+      lastHealthOk = true;
+    } else {
+      el.className = 'ehealth ok';
+      el.textContent = '● live · realtime';
+      lastHealthOk = true;
+    }
+    if (d.gen_ms != null)    { $('eng-gen').textContent = d.gen_ms; lastGen = d.gen_ms; }
+    if (d.starves != null)    $('eng-starves').textContent   = d.starves;
+    if (d.underruns != null)  $('eng-underruns').textContent = d.underruns;
   }
 };
 
@@ -632,6 +691,20 @@ if __name__ == "__main__":
                 tel.event("render", ms=4735, chunk=779, underruns=0)
             elif i % 40 == 0:
                 tel.event("hold")
+
+            # ~1Hz engine-health, mirroring the live control loop — cycle through
+            # healthy → behind-realtime → stopped so the badge is demoable.
+            if i % 20 == 0:
+                cycle = (i // 20) % 12
+                if cycle == 11:
+                    tel.health({"ok": False, "starves": 3, "underruns": 1,
+                                "fault": "RuntimeError: model weights missing"})
+                elif cycle in (5, 6):
+                    tel.health({"ok": True, "starves": 2, "underruns": 0},
+                               {"gen_ms_per_chunk": 1120.0, "realtime_ok": False})
+                else:
+                    tel.health({"ok": True, "starves": 0, "underruns": 0},
+                               {"gen_ms_per_chunk": 760.0, "realtime_ok": True})
             i += 1
             time.sleep(0.05)
     except KeyboardInterrupt:
