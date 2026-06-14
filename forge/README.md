@@ -1,10 +1,9 @@
 # Forge
 
 A generative-music playground for musicians, powered by MRT2.
-See [`../GAME_PLAN.md`](../GAME_PLAN.md) for the full vision + architecture.
 
-> This is a **new, self-contained project**. The original Score-the-Story files live
-> in the sibling `livescore/` directory, kept as an untouched reference.
+> This is a **self-contained project**. The Score-the-Story system it grew out of
+> now lives in its own repo: [score-the-story](https://github.com/AaronHo3/score-the-story).
 
 ## The one primitive
 
